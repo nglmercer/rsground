@@ -61,7 +61,7 @@ pub enum ServerMessage {
     Welcome {
         session_id: String,
         files: HashMap<String, DocumentInfo>,
-        users: HashMap<String, AccessLevel>,
+        users: HashMap<String, (String, AccessLevel)>,
     },
 }
 

@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use actix_error_proc::{proof_route, HttpResult};
 use actix_web::{web, HttpRequest, HttpResponse};
 use serde_json::json;
@@ -36,12 +38,22 @@ pub async fn get_project(
         })));
     }
 
+    let users = project
+        .allowed_users
+        .iter()
+        .filter_map(|(user, access)| {
+            app_state
+                .get_username(&user)
+                .map(|username| (user, (username, access)))
+        })
+        .collect::<HashMap<&String, (String, &AccessLevel)>>();
+
     Ok(HttpResponse::Ok().json(json!({
         "access": access,
         "id": project.id,
         "name": project.name,
         "owner": project.owner,
-        "allowed_users": project.allowed_users,
+        "users": users,
         "is_public": project.is_public,
         "password": project.password
     })))
