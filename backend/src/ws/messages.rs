@@ -47,6 +47,7 @@ pub enum ServerMessage {
     },
     UserConnected {
         user_id: String,
+        user_name: String,
     },
     Sync {
         file: String,
