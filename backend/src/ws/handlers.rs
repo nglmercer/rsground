@@ -31,6 +31,7 @@ impl RgWebsocket {
 
         _ = project.broadcast.send(ServerMessage::UserConnected {
             user_id: self.user_info.id.clone(),
+            user_name: self.user_info.name.clone(),
         });
 
         let files = project.get_files().clone();
