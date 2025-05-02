@@ -7,6 +7,7 @@ use uuid::Uuid;
 use crate::auth::jwt::RgUserData;
 use crate::auth::{github, jwt};
 use crate::http_errors::HttpErrors;
+use crate::state::AppState;
 
 pub struct OAuthData {
     pub client: oauth2::basic::BasicClient,
@@ -39,6 +40,7 @@ pub async fn me(req: HttpRequest) -> HttpResult<HttpErrors> {
 
 #[get("/auth/callback")]
 async fn callback(
+    state: web::Data<AppState>,
     query: web::Query<AuthRequest>,
     oauth_data: web::Data<OAuthData>,
 ) -> HttpResult<HttpErrors> {
@@ -62,6 +64,8 @@ async fn callback(
     let jwt =
         RgUserData::new(github_user.login.clone(), github_user.login.clone(), false).encode()?;
 
+    state.add_username(github_user.login.clone(), github_user.login.clone());
+
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "jwt": jwt,
         "id": github_user.login,
@@ -77,10 +81,15 @@ struct GuestLoginRequest {
 }
 
 #[proof_route(post("/auth/guest"))]
-async fn login_guest(body: web::Json<GuestLoginRequest>) -> HttpResult<HttpErrors> {
+async fn login_guest(
+    state: web::Data<AppState>,
+    body: web::Json<GuestLoginRequest>,
+) -> HttpResult<HttpErrors> {
     let guest_name = &body.guest_name;
     let guest_uuid = Uuid::new_v4().to_string();
     let jwt = RgUserData::new(guest_uuid.clone(), guest_name.clone(), true).encode()?;
+
+    state.add_username(guest_uuid.clone(), guest_name.clone());
 
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "jwt": jwt,
@@ -96,6 +105,7 @@ struct UpdateNameRequest {
 
 #[proof_route(post("/auth/update"))]
 async fn update_name(
+    state: web::Data<AppState>,
     body: web::Json<UpdateNameRequest>,
     req: actix_web::HttpRequest,
 ) -> HttpResult<HttpErrors> {
@@ -109,6 +119,8 @@ async fn update_name(
     let new_name = body.into_inner().new_name;
 
     let jwt = RgUserData::new(uuid.clone(), new_name.clone(), true).encode()?;
+
+    state.add_username(uuid.clone(), new_name.clone());
 
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "jwt": jwt,

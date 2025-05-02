@@ -35,7 +35,15 @@ impl RgWebsocket {
         });
 
         let files = project.get_files().clone();
-        let users = project.allowed_users.clone();
+        let users = project
+            .allowed_users
+            .iter()
+            .filter_map(|(user, access)| {
+                self.app_state
+                    .get_username(&user)
+                    .map(|username| (user.clone(), (username, *access)))
+            })
+            .collect();
 
         Ok(ServerMessage::Welcome {
             session_id: self.session_id.clone(),

@@ -7,6 +7,7 @@ mod state;
 mod utils;
 mod ws;
 
+use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
 
 use actix_cors::Cors;
@@ -35,6 +36,7 @@ async fn main() -> std::io::Result<()> {
 
     let app_state = web::Data::new(AppState {
         manager: Mutex::new(ProjectManager::new()).into(),
+        usernames: Mutex::new(HashMap::new()).into(),
     });
 
     HttpServer::new(move || {
