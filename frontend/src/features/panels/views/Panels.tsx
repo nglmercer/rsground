@@ -1,18 +1,21 @@
-import "dockview-core/dist/styles/dockview.css";
-
+import { getOwner, runWithOwner } from "solid-js";
 import {
   DockviewComponent,
   DockviewTheme,
   IContentRenderer,
 } from "dockview-core";
 
+import { setDockview } from "../stores";
 import { CodePanel } from "./CodePanel";
 import { OutputPanel } from "./OutputPanel";
 
+import "dockview-core/dist/styles/dockview.css";
 import "./dockview.sass";
+
 import styles from "./Panels.module.sass";
 
 export function Panels() {
+  const owner = getOwner();
   const element = <div class={styles.container} /> as HTMLElement;
 
   const dockview = new DockviewComponent(element, {
@@ -28,7 +31,7 @@ export function Panels() {
 
     createComponent(options) {
       const element = (options.name == "code"
-        ? CodePanel()
+        ? runWithOwner(owner, () => CodePanel(options.id))
         : options.name == "output"
         ? OutputPanel()
         : <span>Esto es canallesco</span>) as HTMLElement;
@@ -51,13 +54,9 @@ export function Panels() {
         position: { direction: "below" },
       });
     }
-  })
-
-  dockview.api.addPanel({
-    id: "file:main.rs",
-    component: "code",
-    title: "main.rs",
   });
+
+  setDockview(dockview.api);
 
   dockview.api.addPanel({
     id: "output",

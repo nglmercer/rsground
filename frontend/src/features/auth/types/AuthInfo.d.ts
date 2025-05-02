@@ -1,7 +1,8 @@
 export interface AuthInfo {
-  jwt?: string;
-  username?: string;
-  name?: string;
+  jwt: string;
+  id: string;
+  is_guest: boolean;
+  name: string;
+
   avatar_url?: string;
-  uuid?: string;
 }
