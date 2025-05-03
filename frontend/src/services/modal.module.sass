@@ -1,0 +1,49 @@
+@use "../styles/_mixins.sass" as *
+
+@mixin timer($light, $dark)
+    +themed_var(timer-color, $light, $dark)
+
+.animation_show
+  +animate(toast-show, forwards 300ms)
+    0%
+      scale: 0
+      opacity: 0
+
+    60%
+      scale: 1.05
+      opacity: 1
+
+    100%
+      scale: 1
+
+.animation_hide
+  +animate(toast-hide, forwards 300ms)
+    0%
+      scale: 1
+
+    40%
+      scale: 1.05
+      opacity: 1
+
+    100%
+      scale: 0.05
+      opacity: 0
+
+.container
+  --timer-color: inherit
+  --border-color: #000
+  --icon-color: var(--border-color)
+  --swal2-html-container-padding: 1rem
+
+  .popup
+    +neobrutalism
+
+    background: var(--surface-background)
+    color: var(--surface-foreground)
+
+    padding: .5rem
+    border-radius: var(--radius-md)
+    border-color: var(--border-color)
+
+  & :global(.swal2-timer-progress-bar)
+    background: var(--timer-color)
