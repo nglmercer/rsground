@@ -1,17 +1,13 @@
-import { batch, observable, untrack } from "solid-js";
+import { observable, untrack } from "solid-js";
 
 import { authInfo } from "@features/auth/stores";
 import { AuthInfo } from "@features/auth/types";
-import { AccessLevel } from "@features/ws/types";
+import { showModal } from "@services/modal";
 import { showToast } from "@services/toast";
 
-import { createProject, fetchProject } from "../services";
-import {
-  setIsProjectOwner,
-  setProjectAccess,
-  setProjectId,
-  setProjectInfo,
-} from "../stores";
+import { createProject, fetchProject, setProject } from "../services";
+import { setProjectId } from "../stores";
+import { RequestPassword } from "../views";
 
 export function interpectProjectRoutes() {
   if (window.location.pathname === "/") {
@@ -34,31 +30,7 @@ export function interpectProjectRoutes() {
     return;
   }
 
-  fetchProject(projectId).then((project) => {
-    // Check if has access to project
-    if (project.users == null) {
-      // TODO: Pending permission, listen to permission granted.
-      // Once user is allowed, should restart websocket connection
-      // for receive welcome
-      setProjectId(projectId);
-      showToast("error", {
-        titleText: "Not access to project",
-      });
-      return;
-    }
-
-    batch(() => {
-      if (project.owner === untrack(authInfo).id) {
-        setIsProjectOwner(true);
-      }
-
-      setProjectAccess(
-        project.users[untrack(authInfo).id]?.[1] ?? AccessLevel.Queue,
-      );
-      setProjectId(projectId);
-      setProjectInfo(project);
-    });
-  }).catch((err: [number, string]) => {
+  fetchProject(projectId).then(setProject).catch((err: [number, string]) => {
     if (err instanceof Array) {
       if (err[0] === 404) {
         showToast("error", {
@@ -77,9 +49,8 @@ export function interpectProjectRoutes() {
       }
 
       if (err[0] == 401) {
-        showToast("error", {
-          titleText: "Invalid password",
-        });
+        setProjectId(projectId);
+        showModal(RequestPassword);
         return;
       }
     }
