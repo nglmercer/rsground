@@ -113,6 +113,41 @@ impl RgWebsocket {
         let mut manager = self.app_state.get_manager();
 
         match msg {
+            ClientMessage::Config {
+                name,
+                is_public,
+                password,
+            } => {
+                let project = manager.get_project_mut(self.project_id)?;
+
+                if project.owner != self.user_info.id {
+                    return Err(ServerMessageError::None);
+                }
+
+                if let Some(name) = name {
+                    project.name = name;
+                }
+
+                if let Some(is_public) = is_public {
+                    project.is_public = is_public;
+                }
+
+                if let Some(password) = password {
+                    if password.is_empty() {
+                        project.password = None;
+                    } else {
+                        project.password = project.is_public.then_some(password);
+                    }
+                }
+
+                _ = project.broadcast.send(ServerMessage::ProjectConfig {
+                    name: project.name.clone(),
+                    is_public: project.is_public,
+                    password: project.password.clone(),
+                });
+
+                Err(ServerMessageError::None)
+            }
             ClientMessage::FileCreate { file } => {
                 self.access.need_editor()?;
 
