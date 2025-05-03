@@ -6,6 +6,8 @@ import { ProjectInfo } from "../types";
 
 export const [projectAccess, setProjectAccess] = createSignal<AccessLevel>(AccessLevel.Queue);
 
+export const [isProjectOwner, setIsProjectOwner] = createSignal<boolean>(false);
+
 export const [projectId, setProjectId] = createSignal<string>(null);
 
 export const [projectInfo, setProjectInfo] = createSignal<ProjectInfo>(null);

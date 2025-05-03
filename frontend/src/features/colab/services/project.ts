@@ -7,10 +7,22 @@ import { BACKEND_HOST } from "@services";
 import { showToast } from "@services/toast";
 
 import { ProjectInfo } from "../types";
-import { wsSessionId } from "@features/ws/stores";
+import { projectInfo, setProjectAccess, setProjectInfo } from "../stores";
 
 onWsMessage(ServerMessageKind.UpdateAccess, (msg) => {
-  if (msg.user_id === untrack(wsSessionId)) {
+  setProjectInfo((projectInfo) => ({
+    ...projectInfo,
+    users: {
+      ...projectInfo.users,
+      [msg.user_id]: [
+        projectInfo.users[msg.user_id]?.[0] ?? "Unknown",
+        msg.access,
+      ],
+    },
+  }));
+
+  if (msg.user_id === untrack(authInfo)?.id) {
+    setProjectAccess(msg.access);
     if (msg.access === AccessLevel.Editor) {
       showToast("success", {
         titleText: "You have been granted to edit",
@@ -20,6 +32,18 @@ onWsMessage(ServerMessageKind.UpdateAccess, (msg) => {
         titleText: "You have been granted to read",
       });
     }
+  }
+});
+
+onWsMessage(ServerMessageKind.ProjectConfig, (msg) => {
+  const project_info = untrack(projectInfo);
+  if (project_info) {
+    setProjectInfo({
+      ...project_info,
+      name: msg.name,
+      is_public: msg.is_public,
+      password: msg.password,
+    });
   }
 });
 
@@ -51,7 +75,6 @@ export async function fetchProject(
       Authorization: `Bearer ${untrack(authInfo)?.jwt}`,
     },
   });
-
 
   const body = await res.text();
 

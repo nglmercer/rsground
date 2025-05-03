@@ -18,7 +18,8 @@
   width: max-content
   max-height: 95vh
   max-width: 95vw
-  overflow: auto
+  overflow-x: hidden
+  overflow-y: auto
 
   padding: 1rem 1rem
   background: var(--surface-background)
@@ -35,9 +36,16 @@
   gap: 2rem
 
   > div
+    width: 100%
+    max-width: 250px
+
     display: flex
     flex-direction: column
     gap: .5rem
+
+.password_hint
+  font-size: 11px
+  color: #999
 
 .buttons_container
   display: flex
