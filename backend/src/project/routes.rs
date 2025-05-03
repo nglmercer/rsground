@@ -18,7 +18,11 @@ pub async fn get_project(
 ) -> HttpResult<HttpErrors> {
     let app_state = app_state.into_inner();
     let project_id = project_id.into_inner();
-    let password = Some(req.query_string().to_owned()).take_if(|s| !s.is_empty());
+    let password = req
+        .query_string()
+        .strip_prefix("p=")
+        .take_if(|s| !s.is_empty())
+        .map(|s| s.to_owned());
 
     let user_info = jwt::get_user_info(&req)?;
 
