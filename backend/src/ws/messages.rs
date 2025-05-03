@@ -9,15 +9,20 @@ use crate::project::AccessLevel;
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "action", rename_all = "snake_case")]
 pub enum ClientMessage {
-    PermitAccess {
-        user_id: String,
-        access: AccessLevel,
+    Config {
+        name: Option<String>,
+        is_public: Option<bool>,
+        password: Option<String>,
     },
     FileCreate {
         file: String,
     },
     FileDelete {
         file: String,
+    },
+    PermitAccess {
+        user_id: String,
+        access: AccessLevel,
     },
     Sync {
         file: String,
@@ -36,6 +41,11 @@ pub enum ClientMessage {
 pub enum ServerMessage {
     Error {
         message: String,
+    },
+    ProjectConfig {
+        name: String,
+        is_public: bool,
+        password: Option<String>,
     },
     ProjectFiles {
         /// List of all file paths
