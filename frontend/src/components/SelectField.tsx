@@ -27,6 +27,11 @@ export type SelectFieldProps<T extends string> =
     closeOnChange?: boolean;
 
     /**
+     * Whether or not is editable
+     */
+    disabled?: boolean;
+
+    /**
      * Position of the floating options
      */
     placement?: Placement;
@@ -85,13 +90,19 @@ export function SelectField<T extends string>(props: SelectFieldProps<T>) {
     }
   });
 
+  createEffect(() => {
+    if (props.disabled) setOpen(false);
+  });
+
   return (
     <Popover
       open={open()}
-      onOpenChange={setOpen}
+      onOpenChange={(open) => !props.disabled && setOpen(open)}
       placement={props.placement ?? "right-start"}
     >
-      <Popover.Trigger class={styles.base}>
+      <Popover.Trigger
+        classList={{ [styles.base]: true, [styles.disabled]: props.disabled }}
+      >
         <span>{selected() ?? props.defaultText}</span>
         <div>
           <ChevronDownIcon width="0.5em" height="0.5em" />

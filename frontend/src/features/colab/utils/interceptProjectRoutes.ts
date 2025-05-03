@@ -1,4 +1,4 @@
-import { observable, untrack } from "solid-js";
+import { batch, observable, untrack } from "solid-js";
 
 import { authInfo } from "@features/auth/stores";
 import { AuthInfo } from "@features/auth/types";
@@ -6,7 +6,12 @@ import { AccessLevel } from "@features/ws/types";
 import { showToast } from "@services/toast";
 
 import { createProject, fetchProject } from "../services";
-import { setProjectAccess, setProjectId, setProjectInfo } from "../stores";
+import {
+  setIsProjectOwner,
+  setProjectAccess,
+  setProjectId,
+  setProjectInfo,
+} from "../stores";
 
 export function interpectProjectRoutes() {
   if (window.location.pathname === "/") {
@@ -31,7 +36,7 @@ export function interpectProjectRoutes() {
 
   fetchProject(projectId).then((project) => {
     // Check if has access to project
-    if (project.allowed_users == null) {
+    if (project.users == null) {
       // TODO: Pending permission, listen to permission granted.
       // Once user is allowed, should restart websocket connection
       // for receive welcome
@@ -42,11 +47,17 @@ export function interpectProjectRoutes() {
       return;
     }
 
-    setProjectAccess(
-      project.allowed_users[untrack(authInfo).id] ?? AccessLevel.Queue,
-    );
-    setProjectId(projectId);
-    setProjectInfo(project);
+    batch(() => {
+      if (project.owner === untrack(authInfo).id) {
+        setIsProjectOwner(true);
+      }
+
+      setProjectAccess(
+        project.users[untrack(authInfo).id]?.[1] ?? AccessLevel.Queue,
+      );
+      setProjectId(projectId);
+      setProjectInfo(project);
+    });
   }).catch((err: [number, string]) => {
     if (err instanceof Array) {
       if (err[0] === 404) {

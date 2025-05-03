@@ -1,13 +1,23 @@
 import Dialog from "@corvu/dialog";
-import { For } from "solid-js";
+import { createEffect, createSignal, For, Show, untrack } from "solid-js";
 
 import { SelectField } from "@components/SelectField";
 import { Switchbox } from "@components/Switchbox";
 import { TextField } from "@components/TextField";
+import { AccessLevel, ClientMessageKind } from "@features/ws/types";
+import { sendMessage } from "@features/ws/services";
 import { LockIcon } from "@icons/Lock";
 import { BrandsGithubIcon } from "@icons/BrandsGithub";
+import { showToast } from "@services/toast";
 
-import { isColabOpen, setIsColabOpen } from "../stores";
+import {
+  isColabOpen,
+  isProjectOwner,
+  projectId,
+  projectInfo,
+  setIsColabOpen,
+  setProjectInfo,
+} from "../stores";
 
 import styles from "./Colab.module.sass";
 
@@ -25,21 +35,8 @@ export function Colab() {
             <div>
               <h3 class={styles.subtitle}>Room settings</h3>
 
-              <label class={styles.checkbox_input}>
-                Public room
-                <Switchbox />
-              </label>
-
-              <TextField
-                beforeIcon={<LockIcon />}
-                placeholder="Leave empty for no password"
-              />
-
-              <div class={styles.buttons_container}>
-                <button>Copy colab link</button>
-                <button>Copy fork link</button>
-                <button>Fork</button>
-              </div>
+              <ColabPublicPassword />
+              <ColabButtons />
             </div>
 
             <div>
@@ -51,16 +48,23 @@ export function Colab() {
               />
 
               <ul class={styles.user_list}>
-                <For each={requestUsers}>
-                  {(name, idx) => (
+                <For each={Object.entries(projectInfo()?.users ?? {})}>
+                  {([user_id, [username, access]]) => (
                     <li class={styles.member}>
                       <span class={styles.member_name}>
-                        {name}
+                        {username}
                       </span>
 
                       <SelectField
-                        value={idx() % 2 == 0 ? "Editor" : "Viewer"}
-                        options={["Editor", "Viewer"]}
+                        value={access}
+                        disabled={!isProjectOwner()}
+                        options={[AccessLevel.Editor, AccessLevel.ReadOnly]}
+                        onValueChange={(access) => {
+                          sendMessage(ClientMessageKind.PermitAccess, {
+                            user_id,
+                            access,
+                          });
+                        }}
                       />
                     </li>
                   )}
@@ -89,5 +93,85 @@ export function Colab() {
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog>
+  );
+}
+
+function ColabPublicPassword() {
+  const [password, setPassword] = createSignal("");
+
+  let debounce: NodeJS.Timeout;
+  let first_time = true;
+  createEffect(() => {
+    let pass = password();
+
+    if (first_time && (first_time = false, true)) return;
+
+    if (debounce) clearTimeout(debounce);
+
+    debounce = setTimeout(() => {
+      sendMessage(ClientMessageKind.Config, { password: pass });
+    }, 500);
+  });
+
+  return (
+    <>
+      <label class={styles.checkbox_input}>
+        Public room
+        <Switchbox
+          checked={projectInfo()?.is_public ?? false}
+          onChange={(ev) => {
+            let projectInfo_ = untrack(projectInfo);
+            if (!!projectInfo_) {
+              setProjectInfo({
+                ...projectInfo_,
+                is_public: ev.currentTarget.checked,
+              });
+              sendMessage(ClientMessageKind.Config, {
+                is_public: ev.currentTarget.checked,
+              });
+            }
+          }}
+        />
+      </label>
+
+      <Show when={projectInfo()?.is_public ?? false}>
+        <TextField
+          value={projectInfo()?.password ?? ""}
+          onInput={(ev) => setPassword(ev.currentTarget.value)}
+          beforeIcon={<LockIcon />}
+          placeholder="Leave empty for no password"
+        />
+        <span class={styles.password_hint}>Password is visible</span>
+      </Show>
+    </>
+  );
+}
+
+function ColabButtons() {
+  const copyPath = (suffix = "") => {
+    navigator.clipboard.writeText(
+      `${location.protocol}//${location.host}/${projectId()}${suffix}`,
+    );
+  };
+
+  return (
+    <div class={styles.buttons_container}>
+      <button onClick={() => copyPath()}>
+        Copy colab link
+      </button>
+      <button onClick={() => copyPath("/fork")}>
+        Copy fork link
+      </button>
+      <button
+        onClick={() => {
+          showToast("debug", {
+            titleText: "Fork project",
+            text: "Not implemented yet",
+          });
+        }}
+      >
+        Fork
+      </button>
+    </div>
   );
 }

@@ -3,6 +3,7 @@ import { AccessLevel } from "./access";
 
 export enum ServerMessageKind {
   Error = "error",
+  ProjectConfig = "project_config",
   ProjectFiles = "project_files",
   UpdateAccess = "update_access",
   UserConnected = "user_connected",
@@ -15,6 +16,12 @@ export type ServerMessage<S extends ServerMessageKind = ServerMessageKind> = {
   [ServerMessageKind.Error]: {
     action: ServerMessageKind.Error;
     message: string;
+  };
+  [ServerMessageKind.ProjectConfig]: {
+    action: ServerMessageKind.ProjectConfig;
+    name: string;
+    is_public: boolean;
+    password?: string;
   };
   [ServerMessageKind.ProjectFiles]: {
     action: ServerMessageKind.ProjectFiles;
