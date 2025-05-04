@@ -1,7 +1,7 @@
 import { getOwner, observable, Owner, runWithOwner, untrack } from "solid-js";
 
 import { authInfo } from "@features/auth/stores";
-import { projectId } from "@features/colab/stores";
+import { projectInfo } from "@features/colab/stores";
 import { openFile } from "@features/editor/services";
 import { syncFiles } from "@features/file-explorer/services";
 import { BACKEND_HOST } from "@services";
@@ -23,36 +23,44 @@ import {
 
 let wsOwner: Owner;
 
+let subs: (() => void)[] = [];
 export function startWebsocket() {
-  observable(() => [authInfo(), projectId()] as const).subscribe(
-    ([authInfo, projectId]) => {
-      if (!!authInfo?.jwt && !!projectId) {
-        wsSession()?.close();
-        connectWs(authInfo.jwt, projectId);
-      } else {
-        setWsSession(null);
-      }
-    },
+  subs.forEach((sub) => sub());
+  subs = [];
+
+  subs.push(
+    observable(() => [authInfo(), projectInfo.id] as const).subscribe(
+      ([authInfo, projectId]) => {
+        if (!!authInfo?.jwt && !!projectId) {
+          wsSession()?.close();
+          connectWs(authInfo.jwt, projectId);
+        } else {
+          setWsSession(null);
+        }
+      },
+    ).unsubscribe,
   );
 
-  observable(wsSession).subscribe((wsSession) => {
-    if (wsSession) {
-      for (const msg of wsQueue) {
-        wsSession.send(JSON.stringify(msg));
+  subs.push(
+    observable(wsSession).subscribe((wsSession) => {
+      if (wsSession) {
+        for (const msg of wsQueue) {
+          wsSession.send(JSON.stringify(msg));
+        }
+        clearWsQueue();
       }
-      clearWsQueue();
-    }
-  });
+    }).unsubscribe,
+  );
 
-  wsOwner = getOwner();
+  wsOwner = getOwner() ?? wsOwner;
 
-  onWsMessage(ServerMessageKind.Welcome, (msg) => {
+  subs.push(onWsMessage(ServerMessageKind.Welcome, (msg) => {
     setWsSessionId(msg.session_id);
 
     syncFiles(msg.files);
 
     openFile("main.rs");
-  });
+  }));
 }
 
 const wsUrl = new URL(BACKEND_HOST);

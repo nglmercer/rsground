@@ -1,32 +1,19 @@
-import { untrack, batch } from "solid-js";
+import { batch, untrack } from "solid-js";
 import SWAL from "sweetalert2";
 
 import { authInfo } from "@features/auth/stores";
 import { onWsMessage, startWebsocket } from "@features/ws/services";
 import { AccessLevel, ServerMessageKind } from "@features/ws/types";
 import { BACKEND_HOST } from "@services";
+import { showModal } from "@services/modal";
 import { showToast } from "@services/toast";
 
 import { ProjectInfo } from "../types";
-import {
-  projectInfo,
-  setIsProjectOwner,
-  setProjectAccess,
-  setProjectId,
-  setProjectInfo,
-} from "../stores";
+import { setIsProjectOwner, setProjectAccess, setProjectInfo } from "../stores";
+import { WaitingAccess } from "../views";
 
 onWsMessage(ServerMessageKind.UpdateAccess, (msg) => {
-  setProjectInfo((projectInfo) => ({
-    ...projectInfo,
-    users: {
-      ...projectInfo.users,
-      [msg.user_id]: [
-        projectInfo.users[msg.user_id]?.[0] ?? "Unknown",
-        msg.access,
-      ],
-    },
-  }));
+  setProjectInfo("users", msg.user_id, 1, msg.access);
 
   if (msg.user_id === untrack(authInfo)?.id) {
     setProjectAccess(msg.access);
@@ -43,15 +30,11 @@ onWsMessage(ServerMessageKind.UpdateAccess, (msg) => {
 });
 
 onWsMessage(ServerMessageKind.ProjectConfig, (msg) => {
-  const project_info = untrack(projectInfo);
-  if (project_info) {
-    setProjectInfo({
-      ...project_info,
-      name: msg.name,
-      is_public: msg.is_public,
-      password: msg.password,
-    });
-  }
+  setProjectInfo({
+    name: msg.name,
+    is_public: msg.is_public,
+    password: msg.password,
+  });
 });
 
 export function setProject(project: ProjectInfo) {
@@ -60,10 +43,7 @@ export function setProject(project: ProjectInfo) {
     // TODO: Pending permission, listen to permission granted.
     // Once user is allowed, should restart websocket connection
     // for receive welcome
-    setProjectId(project.id);
-    showToast("error", {
-      titleText: "Not access to project",
-    });
+    setProjectInfo("id", project.id);
     return;
   }
 
@@ -75,15 +55,14 @@ export function setProject(project: ProjectInfo) {
     setProjectAccess(
       project.users[untrack(authInfo).id]?.[1] ?? AccessLevel.Queue,
     );
-    setProjectId(project.id);
     setProjectInfo(project);
   });
 
   // Close current modal, maybe it is password
   // or waiting screen
-  SWAL.close()
+  SWAL.close();
 
-  startWebsocket()
+  startWebsocket();
 }
 
 export async function createProject(

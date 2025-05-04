@@ -1,4 +1,5 @@
 import { createSignal } from "solid-js";
+import { createStore } from "solid-js/store";
 
 import { AccessLevel } from "@features/ws/types";
 
@@ -8,6 +9,9 @@ export const [projectAccess, setProjectAccess] = createSignal<AccessLevel>(Acces
 
 export const [isProjectOwner, setIsProjectOwner] = createSignal<boolean>(false);
 
-export const [projectId, setProjectId] = createSignal<string>(null);
-
-export const [projectInfo, setProjectInfo] = createSignal<ProjectInfo>(null);
+export const [projectInfo, setProjectInfo] = createStore<ProjectInfo>({
+  id: "",
+  users: {},
+  requests: {},
+  is_public: false,
+});

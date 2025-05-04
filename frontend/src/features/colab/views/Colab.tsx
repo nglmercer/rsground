@@ -1,5 +1,5 @@
 import Dialog from "@corvu/dialog";
-import { createEffect, createSignal, For, Show, untrack } from "solid-js";
+import { createEffect, createSignal, For, Show } from "solid-js";
 
 import { SelectField } from "@components/SelectField";
 import { Switchbox } from "@components/Switchbox";
@@ -13,7 +13,6 @@ import { showToast } from "@services/toast";
 import {
   isColabOpen,
   isProjectOwner,
-  projectId,
   projectInfo,
   setIsColabOpen,
   setProjectInfo,
@@ -48,7 +47,7 @@ export function Colab() {
               />
 
               <ul class={styles.user_list}>
-                <For each={Object.entries(projectInfo()?.users ?? {})}>
+                <For each={Object.entries(projectInfo.users)}>
                   {([user_id, [username, access]]) => (
                     <li class={styles.member}>
                       <span class={styles.member_name}>
@@ -118,25 +117,19 @@ function ColabPublicPassword() {
       <label class={styles.checkbox_input}>
         Public room
         <Switchbox
-          checked={projectInfo()?.is_public ?? false}
+          checked={projectInfo.is_public}
           onChange={(ev) => {
-            let projectInfo_ = untrack(projectInfo);
-            if (!!projectInfo_) {
-              setProjectInfo({
-                ...projectInfo_,
-                is_public: ev.currentTarget.checked,
-              });
-              sendMessage(ClientMessageKind.Config, {
-                is_public: ev.currentTarget.checked,
-              });
-            }
+            setProjectInfo("is_public", ev.currentTarget.checked);
+            sendMessage(ClientMessageKind.Config, {
+              is_public: ev.currentTarget.checked,
+            });
           }}
         />
       </label>
 
-      <Show when={projectInfo()?.is_public ?? false}>
+      <Show when={projectInfo.is_public}>
         <TextField
-          value={projectInfo()?.password ?? ""}
+          value={projectInfo.password ?? ""}
           onInput={(ev) => setPassword(ev.currentTarget.value)}
           beforeIcon={<LockIcon />}
           placeholder="Leave empty for no password"
@@ -150,7 +143,7 @@ function ColabPublicPassword() {
 function ColabButtons() {
   const copyPath = (suffix = "") => {
     navigator.clipboard.writeText(
-      `${location.protocol}//${location.host}/${projectId()}${suffix}`,
+      `${location.protocol}//${location.host}/${projectInfo.id}${suffix}`,
     );
   };
 

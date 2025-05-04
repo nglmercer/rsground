@@ -5,7 +5,7 @@ import { ErrorIcon } from "@icons/ErrorIcon";
 import { LockIcon } from "@icons/Lock";
 
 import { fetchProject, setProject } from "../services";
-import { projectId } from "../stores";
+import { projectInfo } from "../stores";
 
 import styles from "./RequestPassword.module.sass";
 
@@ -34,7 +34,7 @@ export function RequestPassword() {
           if (!password()) {
             setHint("Put some text :)");
           } else {
-            fetchProject(projectId(), password()).then(setProject).catch(
+            fetchProject(projectInfo.id, password()).then(setProject).catch(
               (err) => {
                 if (
                   err instanceof Array && err[0] == 401 &&
