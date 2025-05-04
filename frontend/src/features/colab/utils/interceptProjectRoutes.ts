@@ -6,8 +6,8 @@ import { showModal } from "@services/modal";
 import { showToast } from "@services/toast";
 
 import { createProject, fetchProject, setProject } from "../services";
-import { setProjectId } from "../stores";
 import { RequestPassword } from "../views";
+import { setProjectInfo } from "../stores";
 
 export function interpectProjectRoutes() {
   if (window.location.pathname === "/") {
@@ -49,7 +49,7 @@ export function interpectProjectRoutes() {
       }
 
       if (err[0] == 401) {
-        setProjectId(projectId);
+        setProjectInfo("id", projectId);
         showModal(RequestPassword);
         return;
       }
