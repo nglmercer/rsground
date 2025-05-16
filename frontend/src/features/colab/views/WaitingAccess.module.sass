@@ -1,0 +1,33 @@
+@use "../../../styles/_mixins.sass" as *
+
+.container
+  display: flex
+  flex-direction: column
+  gap: 1rem
+
+.username_paragraph
+  font-size: 1rem
+
+.username
+  color: var(--colors-primary)
+
+.actions
+  display: flex
+  gap: 0.5rem
+  justify-content: center
+
+  :where(&) > button
+    +neobrutalism
+
+    padding: 0.25rem .75rem
+
+    background: var(--colors-primary)
+    font-weight: 700
+
+    display: flex
+    gap: 0.25rem
+    align-items: center
+
+.action_secondary
+  background: var(--colors-secondary)
+

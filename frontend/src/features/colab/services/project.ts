@@ -9,7 +9,12 @@ import { showModal } from "@services/modal";
 import { showToast } from "@services/toast";
 
 import { ProjectInfo } from "../types";
-import { setIsProjectOwner, setProjectAccess, setProjectInfo } from "../stores";
+import {
+  projectInfo,
+  setIsProjectOwner,
+  setProjectAccess,
+  setProjectInfo,
+} from "../stores";
 import { WaitingAccess } from "../views";
 
 onWsMessage(ServerMessageKind.UpdateAccess, (msg) => {
@@ -17,13 +22,24 @@ onWsMessage(ServerMessageKind.UpdateAccess, (msg) => {
 
   if (msg.user_id === untrack(authInfo)?.id) {
     setProjectAccess(msg.access);
+
     if (msg.access === AccessLevel.Editor) {
+      projectInfo.requests[msg.user_id] &&
+        setProjectInfo("requests", msg.user_id, undefined);
       showToast("success", {
         titleText: "You have been granted to edit",
       });
     } else if (msg.access === AccessLevel.ReadOnly) {
+      projectInfo.requests[msg.user_id] &&
+        setProjectInfo("requests", msg.user_id, undefined);
       showToast("success", {
         titleText: "You have been granted to read",
+      });
+    } else if (msg.access === AccessLevel.Queue) {
+      projectInfo.requests[msg.user_id] &&
+        setProjectInfo("requests", msg.user_id, undefined);
+      showToast("error", {
+        titleText: "You have been kicked",
       });
     }
   }
@@ -37,6 +53,10 @@ onWsMessage(ServerMessageKind.ProjectConfig, (msg) => {
   });
 });
 
+onWsMessage(ServerMessageKind.RequestAccess, (msg) => {
+  setProjectInfo("requests", msg.user_id, msg.user_name);
+});
+
 export function setProject(project: ProjectInfo) {
   // Check if has access to project
   if (project.users == null) {
@@ -44,6 +64,9 @@ export function setProject(project: ProjectInfo) {
     // Once user is allowed, should restart websocket connection
     // for receive welcome
     setProjectInfo("id", project.id);
+    showModal(WaitingAccess, {
+      allowOutsideClick: false,
+    });
     return;
   }
 
