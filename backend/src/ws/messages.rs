@@ -59,6 +59,10 @@ pub enum ServerMessage {
         user_id: String,
         user_name: String,
     },
+    RequestAccess {
+        user_id: String,
+        user_name: String,
+    },
     Sync {
         file: String,
         revision: usize,
@@ -72,6 +76,8 @@ pub enum ServerMessage {
         session_id: String,
         files: HashMap<String, DocumentInfo>,
         users: HashMap<String, (String, AccessLevel)>,
+        // Only for owner
+        requests: Option<HashMap<String, String>>,
     },
 }
 

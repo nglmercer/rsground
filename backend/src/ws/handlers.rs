@@ -22,6 +22,11 @@ impl RgWebsocket {
     }
 
     pub async fn handle_welcome(&self, ctx: &mut ws::Session) {
+        // Don't send welcome when is in queue
+        if !self.access.can_read() {
+            return;
+        }
+
         Self::handle_ws_response(ctx, self.compose_welcome().await).await
     }
 
@@ -45,10 +50,27 @@ impl RgWebsocket {
             })
             .collect();
 
+        let requests = if project.owner == self.user_info.id {
+            Some(
+                project
+                    .requests
+                    .iter()
+                    .filter_map(|user| {
+                        self.app_state
+                            .get_username(&user)
+                            .map(|username| (user.clone(), username))
+                    })
+                    .collect(),
+            )
+        } else {
+            None
+        };
+
         Ok(ServerMessage::Welcome {
             session_id: self.session_id.clone(),
             files,
             users,
+            requests,
         })
     }
 
@@ -61,6 +83,18 @@ impl RgWebsocket {
                     .text_json(&ServerMessage::UpdateAccess { access, user_id })
                     .await;
             }
+            // Only update requests to owner
+            ServerMessage::RequestAccess { .. }
+                if self
+                    .app_state
+                    .get_manager()
+                    .get_project(&self.project_id)
+                    .is_some_and(|p| p.owner == self.user_info.id) =>
+            {
+                _ = ctx.text_json(&msg).await
+            }
+            ServerMessage::RequestAccess { .. } => {}
+
             _ if self.access.can_read() => _ = ctx.text_json(&msg).await,
             _ => {}
         }
