@@ -7,6 +7,7 @@ export enum ServerMessageKind {
   ProjectFiles = "project_files",
   UpdateAccess = "update_access",
   UserConnected = "user_connected",
+  RequestAccess = "request_access",
   Sync = "sync",
   SyncCursors = "sync_cursors",
   Welcome = "welcome",
@@ -35,6 +36,11 @@ export type ServerMessage<S extends ServerMessageKind = ServerMessageKind> = {
   [ServerMessageKind.UserConnected]: {
     action: ServerMessageKind.UserConnected;
     user_id: string;
+  };
+  [ServerMessageKind.RequestAccess]: {
+    action: ServerMessageKind.RequestAccess;
+    user_id: string;
+    user_name: string;
   };
   [ServerMessageKind.Sync]: {
     action: ServerMessageKind.Sync;

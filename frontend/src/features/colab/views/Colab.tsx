@@ -21,8 +21,6 @@ import {
 import styles from "./Colab.module.sass";
 
 export function Colab() {
-  const requestUsers = ["CHIWO", "Jopzgo", "gg0074x", "Otro"];
-
   return (
     <Dialog open={isColabOpen()} onOpenChange={setIsColabOpen}>
       <Dialog.Portal>
@@ -72,16 +70,37 @@ export function Colab() {
 
               <h3 class={styles.subtitle}>Pending Requests</h3>
               <ul class={styles.user_list}>
-                <For each={requestUsers}>
-                  {(name) => (
+                <For each={Object.entries(projectInfo.requests)}>
+                  {([user, name]) => (
                     <li class={styles.member}>
                       <span class={styles.member_name}>
                         {name}
                       </span>
 
                       <ul class={styles.button_group}>
-                        <button class={styles.success}>Allow</button>
-                        <button class={styles.error}>Kick</button>
+                        <button
+                          class={styles.success}
+                          onClick={() => {
+                            setProjectInfo("users", user, [
+                              name,
+                              AccessLevel.ReadOnly,
+                            ]);
+                            sendMessage(ClientMessageKind.PermitAccess, {
+                              user_id: user,
+                              access: AccessLevel.ReadOnly,
+                            });
+                          }}
+                        >
+                          Allow
+                        </button>
+                        <button
+                          class={styles.error}
+                          onClick={() => {
+                            setProjectInfo("requests", user, undefined);
+                          }}
+                        >
+                          Kick
+                        </button>
                       </ul>
                     </li>
                   )}
@@ -145,6 +164,7 @@ function ColabButtons() {
     navigator.clipboard.writeText(
       `${location.protocol}//${location.host}/${projectInfo.id}${suffix}`,
     );
+    showToast("success", { text: "Link copied" });
   };
 
   return (
