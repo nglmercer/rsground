@@ -1,8 +1,9 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use tokio::sync::broadcast;
 use uuid::Uuid;
 
+use crate::auth::jwt::RgUserData;
 use crate::collab::{Document, DocumentInfo};
 use crate::http_errors::HttpErrors;
 use crate::ws::messages::ServerMessage;
@@ -15,6 +16,7 @@ pub struct Project {
     pub owner: String,
     pub documents: HashMap<String, Document>,
     pub allowed_users: HashMap<String, AccessLevel>,
+    pub requests: HashSet<String>,
     pub is_public: bool,
     pub password: Option<String>,
     pub broadcast: broadcast::Sender<ServerMessage>,
@@ -28,6 +30,7 @@ impl Default for Project {
             owner: String::new(),
             documents: HashMap::new(),
             allowed_users: HashMap::new(),
+            requests: HashSet::new(),
             is_public: true,
             password: None,
             broadcast: broadcast::channel(u8::MAX as usize).0,
@@ -41,6 +44,15 @@ impl Project {
             name: name.into(),
             owner,
             ..Default::default()
+        }
+    }
+
+    pub fn add_request(&mut self, user_info: &RgUserData) {
+        if self.requests.insert(user_info.id.clone()) {
+            _ = self.broadcast.send(ServerMessage::RequestAccess {
+                user_id: user_info.id.clone(),
+                user_name: user_info.name.clone(),
+            });
         }
     }
 
