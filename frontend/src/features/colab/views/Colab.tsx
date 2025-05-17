@@ -17,6 +17,7 @@ import {
   setIsColabOpen,
   setProjectInfo,
 } from "../stores";
+import { forkProject } from "../services";
 
 import styles from "./Colab.module.sass";
 
@@ -175,14 +176,7 @@ function ColabButtons() {
       <button onClick={() => copyPath("/fork")}>
         Copy fork link
       </button>
-      <button
-        onClick={() => {
-          showToast("debug", {
-            titleText: "Fork project",
-            text: "Not implemented yet",
-          });
-        }}
-      >
+      <button onClick={() => forkProject(projectInfo.id)}>
         Fork
       </button>
     </div>

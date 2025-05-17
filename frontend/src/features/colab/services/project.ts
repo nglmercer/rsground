@@ -57,7 +57,7 @@ onWsMessage(ServerMessageKind.RequestAccess, (msg) => {
   setProjectInfo("requests", msg.user_id, msg.user_name);
 });
 
-export function setProject(project: ProjectInfo) {
+export function setProject(project: ProjectInfo, shouldFork: boolean) {
   // Check if has access to project
   if (project.users == null) {
     // TODO: Pending permission, listen to permission granted.
@@ -67,6 +67,11 @@ export function setProject(project: ProjectInfo) {
     showModal(WaitingAccess, {
       allowOutsideClick: false,
     });
+    return;
+  }
+
+  if (shouldFork) {
+    forkProject(project.id);
     return;
   }
 
@@ -130,4 +135,21 @@ export async function fetchProject(
   }
 
   return JSON.parse(body);
+}
+
+export async function forkProject(project_id: string) {
+  let res = await fetch(`${BACKEND_HOST}/fork/${project_id}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${untrack(authInfo)?.jwt}`,
+    },
+  });
+
+  if (!res.ok) {
+    return;
+  }
+
+  const { id } = await res.json();
+
+  location.pathname = "/" + id;
 }

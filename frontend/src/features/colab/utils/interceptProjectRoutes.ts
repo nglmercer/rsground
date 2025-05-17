@@ -21,16 +21,9 @@ export function interpectProjectRoutes() {
   let projectId = segments.shift();
   let maybeAction = segments.shift();
 
-  if (maybeAction === "fork") {
-    // TODO: fork project
-    showToast("debug", {
-      titleText: "Fork project",
-      text: "Not implemented yet",
-    });
-    return;
-  }
-
-  fetchProject(projectId).then(setProject).catch((err: [number, string]) => {
+  fetchProject(projectId).then((project) => {
+    setProject(project, maybeAction === "fork");
+  }).catch((err: [number, string]) => {
     if (err instanceof Array) {
       if (err[0] === 404) {
         showToast("error", {
