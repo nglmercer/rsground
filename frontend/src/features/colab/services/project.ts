@@ -10,6 +10,8 @@ import { showToast } from "@services/toast";
 
 import { ProjectInfo } from "../types";
 import {
+  isProjectOwner,
+  projectAccess,
   projectInfo,
   setIsProjectOwner,
   setProjectAccess,
@@ -18,31 +20,36 @@ import {
 import { WaitingAccess } from "../views";
 
 onWsMessage(ServerMessageKind.UpdateAccess, (msg) => {
-  setProjectInfo("users", msg.user_id, 1, msg.access);
+  if (!isProjectOwner()) {
+    const oldAccess = untrack(projectAccess);
 
-  if (msg.user_id === untrack(authInfo)?.id) {
     setProjectAccess(msg.access);
 
+    if (oldAccess === AccessLevel.Queue && msg.access !== AccessLevel.Queue) {
+      window.location.reload();
+      return;
+    }
+
     if (msg.access === AccessLevel.Editor) {
-      projectInfo.requests[msg.user_id] &&
-        setProjectInfo("requests", msg.user_id, undefined);
       showToast("success", {
         titleText: "You have been granted to edit",
       });
     } else if (msg.access === AccessLevel.ReadOnly) {
-      projectInfo.requests[msg.user_id] &&
-        setProjectInfo("requests", msg.user_id, undefined);
       showToast("success", {
         titleText: "You have been granted to read",
       });
     } else if (msg.access === AccessLevel.Queue) {
-      projectInfo.requests[msg.user_id] &&
-        setProjectInfo("requests", msg.user_id, undefined);
       showToast("error", {
         titleText: "You have been kicked",
       });
     }
+    return;
   }
+
+  setProjectInfo("users", msg.user_id, 1, msg.access);
+
+  projectInfo.requests[msg.user_id] &&
+    setProjectInfo("requests", msg.user_id, undefined);
 });
 
 onWsMessage(ServerMessageKind.ProjectConfig, (msg) => {
