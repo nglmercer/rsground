@@ -1,6 +1,7 @@
 pub mod error;
 
-use os_pipe::{PipeReader, PipeWriter};
+pub use os_pipe::{PipeReader, PipeWriter};
+use std::future::Future;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use tokio::{fs, io};
@@ -86,7 +87,39 @@ impl Runner {
             .expect("Skill issuer de manual");
     }
 
-    async fn collect_output(cmd: &mut Command) -> Result<Output, hakoniwa::Error> {
+    pub async fn collect_output(cmd: &mut Command) -> Result<Output, hakoniwa::Error> {
+        async fn collect(stream: Option<PipeReader>) -> Vec<u8> {
+            let mut buf = Vec::new();
+
+            let Some(mut stream) = stream else { return buf };
+
+            _ = stream.read_to_end(&mut buf);
+
+            buf
+        }
+
+        Self::stream_output(cmd, collect, collect)
+            .await
+            .map(|(status, stdout, stderr)| Output {
+                status,
+                stdout,
+                stderr,
+            })
+    }
+
+    pub async fn stream_output<Stdout, Stderr, StdoutAsync, StderrAsync, StdoutFn, StderrFn>(
+        cmd: &mut Command,
+        stdout_fn: StdoutFn,
+        stderr_fn: StderrFn,
+    ) -> Result<(ExitStatus, Stdout, Stderr), hakoniwa::Error>
+    where
+        Stdout: Default + Send + 'static,
+        StdoutAsync: Future<Output = Stdout> + Send + 'static,
+        StdoutFn: FnOnce(Option<PipeReader>) -> StdoutAsync,
+        Stderr: Default + Send + 'static,
+        StderrAsync: Future<Output = Stderr> + Send + 'static,
+        StderrFn: FnOnce(Option<PipeReader>) -> StderrAsync,
+    {
         let mut child = cmd
             .envs(BASE_ENV)
             .current_dir("/home")
@@ -96,25 +129,9 @@ impl Runner {
             .spawn()?;
 
         let stdout = child.stdout.take();
-        let stdout = tokio::spawn(async {
-            let mut buf = Vec::new();
-
-            let Some(mut stdout) = stdout else { return buf };
-
-            _ = stdout.read_to_end(&mut buf);
-
-            buf
-        });
+        let stdout = tokio::spawn(stdout_fn(stdout));
         let stderr = child.stderr.take();
-        let stderr = tokio::spawn(async {
-            let mut buf = Vec::new();
-
-            let Some(mut stderr) = stderr else { return buf };
-
-            _ = stderr.read_to_end(&mut buf);
-
-            buf
-        });
+        let stderr = tokio::spawn(stderr_fn(stderr));
 
         let status = tokio::spawn(async move { child.wait() });
 
@@ -140,11 +157,7 @@ impl Runner {
             .inspect_err(|err| eprintln!("Join error: {err}"))
             .unwrap_or_default();
 
-        Ok(Output {
-            status,
-            stdout,
-            stderr,
-        })
+        Ok((status, stdout, stderr))
     }
 
     /// Spawn process with shared stdio.
@@ -183,39 +196,38 @@ impl Runner {
         Ok((child, stdin, stdout, stderr))
     }
 
-    pub async fn run(
+    pub fn cmd(
         &self,
         cmd: impl AsRef<str>,
         args: impl IntoIterator<Item = impl AsRef<str>>,
-    ) -> Result<Output, hakoniwa::Error> {
-        Self::collect_output(self.container.command(cmd.as_ref()).args(args)).await
+    ) -> Command {
+        let mut cmd = self.container.command(cmd.as_ref());
+        cmd.args(args);
+        cmd
     }
 
-    pub async fn run_bash(
+    pub fn cmd_bash(
         &self,
         cmd: impl AsRef<str>,
         args: impl IntoIterator<Item = impl AsRef<str>>,
-    ) -> Result<Output, hakoniwa::Error> {
+    ) -> Command {
         let args = args
             .into_iter()
-            .map(|a| a.as_ref().to_string())
+            .map(|a| format!("{:?}", a.as_ref()))
             .collect::<Vec<_>>()
             .join(" ");
-        let cmd = format!("{} {args}", cmd.as_ref());
-        Self::collect_output(self.container.command("/bin/bash").arg("-c").arg(&cmd)).await
+        let arg = format!("{} {args}", cmd.as_ref());
+
+        let mut cmd = self.container.command("/bin/bash");
+        cmd.arg("-c").arg(&arg);
+        cmd
     }
 
-    pub async fn run_rustc(
-        &self,
-        args: impl IntoIterator<Item = impl AsRef<str>>,
-    ) -> Result<Output, hakoniwa::Error> {
-        Self::collect_output(
-            self.container
-                .command("/bin/rustc")
-                // -C linker=/bin/ld -C link-args=-L/lib -C link-args=-L/lib/gcc/x86_64-unknown-linux-gnu/14.2.1
-                .args(args),
-        )
-        .await
+    pub fn cmd_rustc(&self, args: impl IntoIterator<Item = impl AsRef<str>>) -> Command {
+        let mut cmd = self.container.command("/bin/rustc");
+        // -C linker=/bin/ld -C link-args=-L/lib -C link-args=-L/lib/gcc/x86_64-unknown-linux-gnu/14.2.1
+        cmd.args(args);
+        cmd
     }
 
     pub async fn patch_binary(&self, path: impl AsRef<str>) -> Result<Output, hakoniwa::Error> {

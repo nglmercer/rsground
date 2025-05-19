@@ -9,8 +9,7 @@ async fn cargo_build() {
     let runner = Runner::new().await.unwrap();
     cargo_init(&runner).await;
 
-    let output = runner
-        .run("/bin/cargo", ["build", "--release"])
+    let output = Runner::collect_output(&mut runner.cmd("/bin/cargo", ["build", "--release"]))
         .await
         .unwrap();
 
@@ -24,8 +23,7 @@ async fn cargo_run() {
     let runner = Runner::new().await.unwrap();
     cargo_init(&runner).await;
 
-    let output = runner
-        .run("/bin/cargo", ["build", "--release"])
+    let output = Runner::collect_output(&mut runner.cmd("/bin/cargo", ["build", "--release"]))
         .await
         .unwrap();
 
@@ -45,8 +43,7 @@ async fn cargo_run() {
         .copy_file_from_runner(&runner, "main", "target/release/rsground-main")
         .await;
 
-    let output = executer_runner
-        .run("/home/main", [] as [&str; 0])
+    let output = Runner::collect_output(&mut executer_runner.cmd("/home/main", [] as [&str; 0]))
         .await
         .unwrap();
 

@@ -1,11 +1,10 @@
+use rsground_runner::Runner;
+
 #[tokio::test]
 async fn echo() {
-    let runner = rsground_runner::Runner::new()
-        .await
-        .expect("The runners was not created");
+    let runner = Runner::new().await.expect("The runners was not created");
 
-    let output = runner
-        .run("/bin/echo", ["-n", "Hello World"].iter())
+    let output = Runner::collect_output(&mut runner.cmd("/bin/echo", ["-n", "Hello World"].iter()))
         .await
         .expect("Cannot run code");
 

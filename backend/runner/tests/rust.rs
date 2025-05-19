@@ -1,16 +1,14 @@
 mod common;
 use common::{print_output, HELLO_WORLD_RS};
+use rsground_runner::Runner;
 
 #[tokio::test]
 async fn rust_compilation() {
-    let runner = rsground_runner::Runner::new()
-        .await
-        .expect("The runners was not created");
+    let runner = Runner::new().await.expect("The runners was not created");
 
     runner.create_file("main.rs", HELLO_WORLD_RS).await.unwrap();
 
-    let output = runner
-        .run_rustc(["main.rs"])
+    let output = Runner::collect_output(&mut runner.cmd_rustc(["main.rs"]))
         .await
         .expect("Cannot run code");
 
@@ -22,14 +20,11 @@ async fn rust_compilation() {
 
 #[tokio::test]
 async fn rust_executable() {
-    let runner = rsground_runner::Runner::new()
-        .await
-        .expect("The runners was not created");
+    let runner = Runner::new().await.expect("The runners was not created");
 
     runner.create_file("main.rs", HELLO_WORLD_RS).await.unwrap();
 
-    let output = runner
-        .run_rustc(["main.rs"])
+    let output = Runner::collect_output(&mut runner.cmd_rustc(["main.rs"]))
         .await
         .expect("Cannot run code");
 
@@ -48,8 +43,7 @@ async fn rust_executable() {
 
     assert_eq!(output.status.success(), true);
 
-    let output = runner
-        .run("/home/main", [] as [&str; 0])
+    let output = Runner::collect_output(&mut runner.cmd("/home/main", [] as [&str; 0]))
         .await
         .expect("Cannot run code");
 
@@ -62,20 +56,15 @@ async fn rust_executable() {
 
 #[tokio::test]
 async fn rust_multi_container_executable() {
-    let executer_runner = rsground_runner::Runner::new()
-        .await
-        .expect("The runners was not created");
-    let compiler_runner = rsground_runner::Runner::new()
-        .await
-        .expect("The runners was not created");
+    let executer_runner = Runner::new().await.expect("The runners was not created");
+    let compiler_runner = Runner::new().await.expect("The runners was not created");
 
     compiler_runner
         .create_file("main.rs", HELLO_WORLD_RS)
         .await
         .unwrap();
 
-    let output = compiler_runner
-        .run_rustc(["main.rs"])
+    let output = Runner::collect_output(&mut compiler_runner.cmd_rustc(["main.rs"]))
         .await
         .expect("Cannot run code");
 
@@ -98,8 +87,7 @@ async fn rust_multi_container_executable() {
         .copy_file_from_runner(&compiler_runner, "main", "main")
         .await;
 
-    let output = executer_runner
-        .run("/home/main", [] as [&str; 0])
+    let output = Runner::collect_output(&mut executer_runner.cmd("/home/main", [] as [&str; 0]))
         .await
         .expect("Cannot run code");
 
