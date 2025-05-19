@@ -88,7 +88,7 @@ macro_rules! ws {
     (@connect-protocol $owner:expr, $password:expr) => {format!("auth.{}, password.{}", $owner, $password)};
 
     (recv $ws:ident, $name:literal $(, $($tt:tt)+)?) => {
-        match ::tokio::time::timeout(::core::time::Duration::from_millis(100), $ws.next()).await {
+        match ::tokio::time::timeout(::core::time::Duration::from_millis(500), $ws.next()).await {
             Ok(Some(Ok(awc::ws::Frame::Text(msg)))) =>  {
                 json_assert!(
                     ::serde_json::from_slice::<::serde_json::Value>(&msg).unwrap(),
@@ -131,8 +131,8 @@ macro_rules! json_assert {
     (@json (Value) [$base:expr] get $key:literal $(, $($tt:tt)+)?) => {
         json_assert!(@json (Value) [$key] [$base.get($key).expect(&format!(concat!('"', $key, "\" should exist in {}"), $base))] $($($tt)+)?)
     };
-    (@json (Value) [$base:expr] get $key:literal $(, $($tt:tt)+)?) => {
-        json_assert!(@json (Value) [$key] [$base.get($key).expect(&format!(concat!('"', $key, "\" should exist in {}"), $base))] $($($tt)+)?)
+    (@json (Object) [$base:expr] get $key:literal $(, $($tt:tt)+)?) => {
+        json_assert!(@json (Value) [$key] [$base.get($key).expect(&format!(concat!('"', $key, "\" should exist in {:?}"), $base))] $($($tt)+)?)
     };
 
     (@json ($ty:ident) [$base:expr] eq $eq:expr $(, $($tt:tt)+)?) => {
@@ -219,7 +219,7 @@ macro_rules! json_assert {
     (@json (Value) [$key:literal] [$base:expr] as object $(, $($tt:tt)+)?) => {
         json_assert!(
             @json
-            (Value)
+            (Object)
             [$base
                 .as_object()
                 .expect(&format!(concat!('"', $key, "\" should be an object")))

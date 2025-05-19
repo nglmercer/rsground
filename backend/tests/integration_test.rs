@@ -73,8 +73,8 @@ async fn test_flow_two_users() {
         "file": "test"
     });
 
-    _ = ws!(recv owner_ws, "project_files", [ get "files", as array, eq [ "test" ] ] );
-    _ = ws!(recv guest_ws, "project_files", [ get "files", as array, eq [ "test" ] ] );
+    _ = ws!(recv owner_ws, "project_files", [ get "files", as object, tee_ref [ get "main.rs", as object ] [ get "test", as object ] ] );
+    _ = ws!(recv guest_ws, "project_files", [ get "files", as object, tee_ref [ get "main.rs", as object ] [ get "test", as object ] ] );
 
     _ = ws!(send guest_ws, "sync" {
         "revision": 0,
@@ -100,6 +100,42 @@ async fn test_flow_two_users() {
         "file": "test"
     });
 
-    _ = ws!(recv owner_ws, "project_files", [ get "files", as array, dbg, expect empty ] );
-    _ = ws!(recv guest_ws, "project_files", [ get "files", as array, dbg, expect empty ] );
+    _ = ws!(recv owner_ws, "project_files", [ get "files", as object, tee_ref [ get "main.rs", as object ] ] );
+    _ = ws!(recv guest_ws, "project_files", [ get "files", as object, tee_ref [ get "main.rs", as object ] ] );
+}
+
+#[actix::test]
+async fn test_run_code() {
+    let (user, user_id) = login_as("user").await;
+
+    let project_id = create_project(&user).await;
+
+    let mut user_ws = ws!(connect user, &project_id);
+
+    // Handshake
+    {
+        let (_, users) = ws!(recv user_ws, "welcome", [ get "users", as object ]);
+        assert!(users.contains_key(&user_id), "Self should be included")
+    }
+
+    _ = ws!(recv user_ws, "user_connected", [ get "user_id", as string, eq user_id ]);
+
+    _ = ws!(send user_ws, "execute" { });
+
+    _ = ws!(recv user_ws, "sync_output_start");
+
+    // Expect just a "Hello World" in stdout
+    let (_, _, buf) = ws!(recv user_ws, "sync_output", [get "channel", as string, eq "stdout"] [get "buf", as array]);
+
+    let buf = buf
+        .into_iter()
+        .filter_map(|n| n.as_u64())
+        .map(|n| n as u8)
+        .collect::<Vec<u8>>();
+
+    let buf = String::from_utf8_lossy(&buf);
+
+    assert_eq!(buf, "Hello World\n");
+
+    _ = ws!(recv user_ws, "sync_output_end");
 }

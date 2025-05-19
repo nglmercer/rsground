@@ -1,5 +1,7 @@
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
+use rsground_runner::Runner;
 use tokio::sync::broadcast;
 use uuid::Uuid;
 
@@ -20,6 +22,7 @@ pub struct Project {
     pub is_public: bool,
     pub password: Option<String>,
     pub broadcast: broadcast::Sender<ServerMessage>,
+    pub runner: Option<Arc<Runner>>,
 }
 
 impl Default for Project {
@@ -33,7 +36,8 @@ impl Default for Project {
             requests: HashSet::new(),
             is_public: true,
             password: None,
-            broadcast: broadcast::channel(u8::MAX as usize).0,
+            broadcast: broadcast::channel(u16::MAX as usize).0,
+            runner: None,
         }
     }
 }
@@ -44,6 +48,16 @@ impl Project {
             name: name.into(),
             owner,
             ..Default::default()
+        }
+    }
+
+    pub async fn get_runner(&mut self) -> Arc<Runner> {
+        if let Some(runner) = self.runner.as_ref().cloned() {
+            runner
+        } else {
+            let runner = Arc::new(Runner::new().await.unwrap());
+            self.runner = Some(runner.clone());
+            runner
         }
     }
 
@@ -64,8 +78,15 @@ impl Project {
         self.documents.get_mut(file_name)
     }
 
-    pub fn add_file(&mut self, path: impl Into<String>, document: Document) -> &mut Document {
+    pub async fn add_file(&mut self, path: impl Into<String>, document: Document) -> &mut Document {
         let path: String = path.into();
+
+        _ = self
+            .get_runner()
+            .await
+            .create_file(&path, &document.buffer)
+            .await;
+
         self.documents.insert(path.clone(), document);
 
         // SAFETY: just inserted above

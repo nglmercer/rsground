@@ -77,7 +77,7 @@ pub async fn create_project(
     let user_info = jwt::get_user_info(&req)?;
 
     let mut manager = app_state.get_manager();
-    let project = manager.new_project(&user_info, name);
+    let project = manager.new_project(&user_info, name).await;
 
     project.permit_access(user_info.id, AccessLevel::Editor);
 

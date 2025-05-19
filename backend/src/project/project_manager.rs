@@ -23,10 +23,16 @@ impl ProjectManager {
         }
     }
 
-    pub fn new_project(&mut self, owner: &RgUserData, name: impl Into<String>) -> &mut Project {
+    pub async fn new_project(
+        &mut self,
+        owner: &RgUserData,
+        name: impl Into<String>,
+    ) -> &mut Project {
         let mut project = Project::new(owner.id.clone(), name);
 
-        project.add_file("main.rs", Document::new_with(MAIN_RS.to_string()));
+        project
+            .add_file("main.rs", Document::new_with(MAIN_RS.to_string()))
+            .await;
 
         self.add_project(project)
     }

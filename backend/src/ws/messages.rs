@@ -14,6 +14,7 @@ pub enum ClientMessage {
         is_public: Option<bool>,
         password: Option<String>,
     },
+    Execute,
     FileCreate {
         file: String,
     },
@@ -72,6 +73,14 @@ pub enum ServerMessage {
         file: String,
         cursors: HashMap<String, Vec<(usize, usize)>>,
     },
+    SyncOutput {
+        channel: OutputChannel,
+        buf: Vec<u8>,
+    },
+    SyncOutputStart,
+    SyncOutputEnd {
+        exit_code: u8,
+    },
     Welcome {
         session_id: String,
         files: HashMap<String, DocumentInfo>,
@@ -79,6 +88,13 @@ pub enum ServerMessage {
         // Only for owner
         requests: Option<HashMap<String, String>>,
     },
+}
+
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OutputChannel {
+    Stdout,
+    Stderr,
 }
 
 #[derive(Debug, thiserror::Error)]
