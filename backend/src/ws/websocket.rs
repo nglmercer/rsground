@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use actix_ws as ws;
 use futures::StreamExt;
 use tokio::sync::broadcast;
@@ -56,8 +58,14 @@ impl RgWebsocket {
         actix_web::rt::spawn(async move {
             self.handle_welcome(&mut session).await;
 
+
+            let mut ping = tokio::time::interval(Duration::from_secs(5));
+
             loop {
                 tokio::select! {
+                    _ = ping.tick() => {
+                        _ = session.text("ping").await;
+                    },
                     msg = self.broadcast.recv() => {
                         let Ok(msg) = msg else {
                             break;
