@@ -1,4 +1,4 @@
-import { observable, untrack } from "solid-js";
+import { untrack } from "solid-js";
 
 import { authInfo } from "@features/auth/stores";
 import { AuthInfo } from "@features/auth/types";
@@ -9,9 +9,9 @@ import { createProject, fetchProject, setProject } from "../services";
 import { RequestPassword } from "../views";
 import { setProjectInfo } from "../stores";
 
-export function interpectProjectRoutes() {
+export function interceptProjectRoutes() {
   if (window.location.pathname === "/") {
-    observable(authInfo).subscribe(createProjectWith);
+    createProjectWith(untrack(authInfo));
     return;
   }
 
@@ -37,7 +37,7 @@ export function interpectProjectRoutes() {
 
       // Just retry until auto-logged
       if (err[0] === 401 && err[1] == "Invalid token") {
-        interpectProjectRoutes();
+        interceptProjectRoutes();
         return;
       }
 

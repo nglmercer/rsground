@@ -72,26 +72,38 @@ const ws_callbacks: Array<(msg: ServerMessage) => void> = [];
 function connectWs(jwt: string, projectId: string) {
   const session = new WebSocket(wsUrl + projectId, [`auth.${jwt}`]);
 
+  let interval: NodeJS.Timeout;
   session.addEventListener("open", () => {
     setWsSession(session);
+
+    interval = setInterval(() => {
+      session.send("ping");
+    }, 5000)
   });
 
   session.addEventListener("message", (ev) => {
+    clearWsQueue();
+    if (ev.data === "ping") return;
     let data = JSON.parse(ev.data) as ServerMessage;
-    console.debug(data);
+    console.debug("[WS] received:", data);
 
     for (const cb of ws_callbacks) {
-      cb(data);
+      untrack(() => cb(data));
     }
   });
 
   session.addEventListener("error", (ev) => {
+    clearInterval(interval);
     setWsSession(null);
     console.error("Websocket error:", ev);
   });
 
-  session.addEventListener("close", () => {
+  session.addEventListener("close", (ev) => {
+    clearInterval(interval);
     setWsSession(null);
+    console.error("Websocket closed:", ev);
+
+    if (ev.code === 1006) startWebsocket();
   });
 }
 
@@ -151,6 +163,8 @@ export function sendMessage<A extends ClientMessageKind>(
 
   const session = untrack(wsSession);
   if (session) {
+    clearWsQueue();
+    wsQueue.push(msg_action);
     session.send(JSON.stringify(msg_action));
   } else {
     wsQueue.push(msg_action);

@@ -4,6 +4,7 @@ import { AccessLevel } from "./access";
 export enum ClientMessageKind {
   Config = "config",
   PermitAccess = "permit_access",
+  Execute = "execute",
   FileCreate = "file_create",
   FileDelete = "file_delete",
   Sync = "sync",
@@ -23,6 +24,9 @@ export type ClientMessage<S extends ClientMessageKind = ClientMessageKind> = {
     user_id: string;
     access: AccessLevel;
   };
+  [ClientMessageKind.Execute]: {
+    action: ClientMessageKind.Execute;
+  },
   [ClientMessageKind.FileCreate]: {
     action: ClientMessageKind.FileCreate;
     file: string;
