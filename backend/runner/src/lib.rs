@@ -1,12 +1,17 @@
 pub mod error;
 
-pub use os_pipe::{PipeReader, PipeWriter};
 use std::future::Future;
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use tokio::{fs, io};
+use std::sync::Arc;
 
 use hakoniwa::{Child, Command, Container, ExitStatus, Output};
+use nix::libc::pid_t;
+use nix::sys::signal::{self, Signal};
+use nix::unistd::Pid;
+pub use os_pipe::{PipeReader, PipeWriter};
+use tokio::sync::Notify;
+use tokio::{fs, io};
 
 pub const BASE_ENV: [(&str, &str); 3] = [
     ("HOME", "/home"),
@@ -98,7 +103,7 @@ impl Runner {
             buf
         }
 
-        Self::stream_output(cmd, collect, collect)
+        Self::stream_output(cmd, collect, collect, Notify::new().into())
             .await
             .map(|(status, stdout, stderr)| Output {
                 status,
@@ -111,6 +116,7 @@ impl Runner {
         cmd: &mut Command,
         stdout_fn: StdoutFn,
         stderr_fn: StderrFn,
+        abort: Arc<Notify>,
     ) -> Result<(ExitStatus, Stdout, Stderr), hakoniwa::Error>
     where
         Stdout: Default + Send + 'static,
@@ -132,6 +138,13 @@ impl Runner {
         let stdout = tokio::spawn(stdout_fn(stdout));
         let stderr = child.stderr.take();
         let stderr = tokio::spawn(stderr_fn(stderr));
+
+        let child_pid = Pid::from_raw(child.id() as pid_t);
+        tokio::spawn(async move {
+            abort.notified().await;
+
+            _ = signal::kill(child_pid, Signal::SIGKILL);
+        });
 
         let status = tokio::spawn(async move { child.wait() });
 
