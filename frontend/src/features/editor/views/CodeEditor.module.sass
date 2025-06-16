@@ -39,7 +39,11 @@
   :global(.cm-activeLineGutter),
   :global(.cm-activeLine),
   :global(.cm-selectionBackground)
-    background: #0004 !important
+    +themed(background, var(--colors-secondary-100) !important, var(--colors-gray-950) !important)
+
+  // If is selecting, then hide activeLine
+  :global(.cm-content):has(~ :global(.cm-selectionLayer) > :global(.cm-selectionBackground)) > :is(:global(.cm-activeLineGutter), :global(.cm-activeLine))
+    background: transparent !important
 
   :global(.cm-matchingBracket),
   :global(.cm-selectionMatch)
