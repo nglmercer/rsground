@@ -83,12 +83,13 @@ export function setProject(project: ProjectInfo, shouldFork: boolean) {
   }
 
   batch(() => {
-    if (project.owner === untrack(authInfo).id) {
-      setIsProjectOwner(true);
-    }
+    let isOwner = project.owner === untrack(authInfo).id;
+    setIsProjectOwner(isOwner);
 
     setProjectAccess(
-      project.users[untrack(authInfo).id]?.[1] ?? AccessLevel.Queue,
+      isOwner
+        ? AccessLevel.Editor
+        : project.users[untrack(authInfo).id]?.[1] ?? AccessLevel.Queue,
     );
     setProjectInfo(project);
   });
