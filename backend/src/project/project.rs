@@ -91,6 +91,15 @@ impl Project {
         }
     }
 
+    pub fn add_request(&mut self, user_info: &RgUserData) {
+        if self.requests.insert(user_info.id.clone()) {
+            _ = self.broadcast.send(ServerMessage::RequestAccess {
+                user_id: user_info.id.clone(),
+                user_name: user_info.name.clone(),
+            });
+        }
+    }
+
     pub fn permit_access(&mut self, user_id: String, access: AccessLevel) {
         self.allowed_users.insert(user_id, access);
     }
