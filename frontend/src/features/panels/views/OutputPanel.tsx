@@ -57,6 +57,7 @@ export function OutputPanel() {
           aria-role="button"
           aria-label="Kill program"
           title="Kill program"
+          onClick={() => sendMessage(ClientMessageKind.StopExecute, {})}
         >
           <SkullIcon />
         </li>

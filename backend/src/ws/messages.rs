@@ -25,6 +25,7 @@ pub enum ClientMessage {
         user_id: String,
         access: AccessLevel,
     },
+    StopExecute,
     Sync {
         file: String,
         revision: usize,

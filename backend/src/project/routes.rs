@@ -106,7 +106,7 @@ pub async fn fork_project(
         return Err(HttpErrors::NotAccessible);
     }
 
-    let forked_project = project.fork(user_info.id.clone());
+    let forked_project = project.fork(user_info.id.clone()).await;
 
     let project = manager.add_project(forked_project);
 

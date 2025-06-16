@@ -1,13 +1,9 @@
-use std::io::Read;
-
 use actix_ws as ws;
-use rsground_runner::Runner;
 
 use crate::collab::Document;
 use crate::ws::messages::{ClientMessage, ServerMessage, ServerMessageError};
 use crate::ws::ws_ext::SessionExt;
 
-use super::messages::OutputChannel;
 use super::websocket::RgWebsocket;
 
 impl RgWebsocket {
@@ -194,122 +190,8 @@ impl RgWebsocket {
                 self.access.need_editor()?;
 
                 let project = manager.get_project_mut(self.project_id)?;
-                let broadcast = project.broadcast.clone();
 
-                let runner = project.get_runner().await.clone();
-
-                macro_rules! stream {
-                    ($broadcast:expr, $channel:expr) => {{
-                        let broadcast = $broadcast;
-
-                        async move |stdout| {
-                            let Some(mut stdout) = stdout else { return };
-
-                            let buf = &mut [0; 2048];
-
-                            loop {
-                                let Ok(size) = stdout.read(buf) else {
-                                    log::trace!("Cannot read");
-                                    break;
-                                };
-
-                                if size == 0 {
-                                    break;
-                                }
-
-                                _ = broadcast.send(ServerMessage::SyncOutput {
-                                    channel: $channel,
-                                    buf: buf[..size].to_vec(),
-                                });
-                            }
-                        }
-                    }};
-                }
-
-                let project_id = self.project_id;
-
-                actix::spawn(async move {
-                    log::trace!("Execute started for {project_id}");
-
-                    _ = broadcast.send(ServerMessage::SyncOutputStart);
-
-                    log::trace!("[Execute] compiling in {project_id}");
-
-                    let (status, _, _) = Runner::stream_output(
-                        &mut runner.cmd_rustc(["/home/main.rs"]),
-                        stream!(broadcast.clone(), OutputChannel::Stdout),
-                        stream!(broadcast.clone(), OutputChannel::Stderr),
-                    )
-                    .await
-                    .map_err(|err| {
-                        log::error!("[Execute] compilation failed in {project_id}: {err}");
-                        _ = broadcast.send(ServerMessage::SyncOutput {
-                            channel: OutputChannel::Stderr,
-                            buf: err.to_string().into_bytes(),
-                        });
-                        _ = broadcast.send(ServerMessage::SyncOutputEnd { exit_code: 126 });
-                        ServerMessageError::None
-                    })?;
-
-                    if !status.success() {
-                        log::error!("[Execute] compilation failed in {project_id}");
-                        _ = broadcast.send(ServerMessage::SyncOutputEnd { exit_code: 126 });
-
-                        return Err(ServerMessageError::None);
-                    }
-
-                    log::trace!("[Execute] patching in {project_id}");
-
-                    let output = runner.patch_binary("/home/main").await.map_err(|err| {
-                        log::error!("[Execute] patching failed in {project_id}: {err}");
-                        _ = broadcast.send(ServerMessage::SyncOutput {
-                            channel: OutputChannel::Stderr,
-                            buf: err.to_string().into_bytes(),
-                        });
-                        _ = broadcast.send(ServerMessage::SyncOutputEnd { exit_code: 126 });
-                        ServerMessageError::None
-                    })?;
-
-                    if !output.status.success() {
-                        log::error!("[Execute] patch failed in {project_id}: {output:#?}");
-                        _ = broadcast.send(ServerMessage::SyncOutput {
-                            channel: OutputChannel::Stdout,
-                            buf: output.stdout,
-                        });
-                        _ = broadcast.send(ServerMessage::SyncOutput {
-                            channel: OutputChannel::Stderr,
-                            buf: output.stderr,
-                        });
-                        _ = broadcast.send(ServerMessage::SyncOutputEnd { exit_code: 126 });
-
-                        return Err(ServerMessageError::None);
-                    }
-                    log::trace!("[Execute] running in {project_id}");
-
-                    let (exit_code, _, _) = Runner::stream_output(
-                        &mut runner.cmd("/home/main", [] as [&str; 0]),
-                        stream!(broadcast.clone(), OutputChannel::Stdout),
-                        stream!(broadcast.clone(), OutputChannel::Stderr),
-                    )
-                    .await
-                    .map_err(|err| {
-                        log::trace!("[Execute] run failed in {project_id}: {err}");
-                        _ = broadcast.send(ServerMessage::SyncOutput {
-                            channel: OutputChannel::Stderr,
-                            buf: err.to_string().into_bytes(),
-                        });
-                        _ = broadcast.send(ServerMessage::SyncOutputEnd { exit_code: 126 });
-                        ServerMessageError::None
-                    })?;
-
-                    log::trace!("[Execute] finish in {project_id}");
-
-                    _ = broadcast.send(ServerMessage::SyncOutputEnd {
-                        exit_code: exit_code.code as u8,
-                    });
-
-                    Ok(())
-                });
+                project.execute().await;
 
                 Err(ServerMessageError::None)
             }
@@ -334,6 +216,7 @@ impl RgWebsocket {
                 let project = manager.get_project_mut(self.project_id)?;
 
                 if let Some(_) = project.rm_file(&file) {
+                    // TODO: remove file in runner
                     let msg = ServerMessage::ProjectFiles {
                         files: project.get_files(),
                     };
@@ -362,6 +245,16 @@ impl RgWebsocket {
 
                 Err(ServerMessageError::None)
             }
+            ClientMessage::StopExecute => {
+                self.access.need_editor()?;
+
+                let project = manager.get_project_mut(self.project_id)?;
+
+                log::trace!("Stop process in {}", self.project_id);
+                project.stop_execute();
+
+                Err(ServerMessageError::None)
+            }
             ClientMessage::Sync {
                 file,
                 revision,
@@ -370,6 +263,7 @@ impl RgWebsocket {
                 self.access.need_editor()?;
 
                 let project = manager.get_project_mut(self.project_id)?;
+                let runner = project.get_runner();
 
                 let doc = project.get_file_mut(&file).ok_or_else(|| {
                     log::error!("File {file:?} not found in {:?}", self.project_id);
@@ -377,6 +271,10 @@ impl RgWebsocket {
                 })?;
 
                 doc.compose(revision, actions);
+                _ = runner
+                    .create_file(&file, &doc.buffer)
+                    .await
+                    .inspect_err(|err| log::error!("{err}"));
 
                 dbg!(&doc.buffer);
 

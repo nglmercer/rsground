@@ -34,10 +34,8 @@ impl RgWebsocket {
                 return Err(HttpErrors::ProjectDoesNotExist);
             };
 
-            let broadcast = project.broadcast.clone();
-
             (
-                broadcast.subscribe(),
+                project.broadcast.subscribe(),
                 project.join_project(&user_info.id, password)?,
             )
         };
@@ -55,9 +53,8 @@ impl RgWebsocket {
     }
 
     pub fn start(mut self, mut session: ws::Session, mut stream: ws::AggregatedMessageStream) {
-        actix_web::rt::spawn(async move {
+        actix::spawn(async move {
             self.handle_welcome(&mut session).await;
-
 
             let mut ping = tokio::time::interval(Duration::from_secs(5));
 

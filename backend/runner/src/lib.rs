@@ -10,7 +10,7 @@ use nix::libc::pid_t;
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
 pub use os_pipe::{PipeReader, PipeWriter};
-use tokio::sync::Notify;
+use tokio::sync::{oneshot, Notify};
 use tokio::{fs, io};
 
 pub const BASE_ENV: [(&str, &str); 3] = [
@@ -103,7 +103,7 @@ impl Runner {
             buf
         }
 
-        Self::stream_output(cmd, collect, collect, Notify::new().into())
+        Self::stream_output(cmd, collect, collect, None)
             .await
             .map(|(status, stdout, stderr)| Output {
                 status,
@@ -116,7 +116,7 @@ impl Runner {
         cmd: &mut Command,
         stdout_fn: StdoutFn,
         stderr_fn: StderrFn,
-        abort: Arc<Notify>,
+        abort: Option<oneshot::Receiver<()>>,
     ) -> Result<(ExitStatus, Stdout, Stderr), hakoniwa::Error>
     where
         Stdout: Default + Send + 'static,
@@ -140,15 +140,23 @@ impl Runner {
         let stderr = tokio::spawn(stderr_fn(stderr));
 
         let child_pid = Pid::from_raw(child.id() as pid_t);
-        tokio::spawn(async move {
-            abort.notified().await;
+        let abort_task = tokio::spawn(async move {
+            let Some(abort) = abort else {
+                return;
+            };
 
+            _ = abort.await;
+
+            println!("[[[[KILL]]]]");
             _ = signal::kill(child_pid, Signal::SIGKILL);
         });
 
-        let status = tokio::spawn(async move { child.wait() });
+        let status = tokio::task::spawn_blocking(move || child.wait());
 
         let (status, stdout, stderr) = tokio::join!(status, stdout, stderr);
+
+        // Cancel abort task
+        abort_task.abort();
 
         let status = status
             .inspect_err(|err| eprintln!("Join error: {err}"))
