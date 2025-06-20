@@ -1,16 +1,14 @@
 pub mod error;
 
-use std::future::Future;
-use std::io::Read;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
-
 use hakoniwa::{Child, Command, Container, ExitStatus, Output};
 use nix::libc::pid_t;
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
 pub use os_pipe::{PipeReader, PipeWriter};
-use tokio::sync::{oneshot, Notify};
+use std::future::Future;
+use std::io::Read;
+use std::path::{Path, PathBuf};
+use tokio::sync::oneshot;
 use tokio::{fs, io};
 
 pub const BASE_ENV: [(&str, &str); 3] = [
@@ -36,7 +34,7 @@ impl Runner {
         temp_home
     }
 
-    fn create_container(temp_home: &PathBuf) -> Container {
+    fn create_container(temp_home: &str) -> Container {
         Container::new()
             .hostname("rsground")
             .rootfs(concat!(env!("CARGO_MANIFEST_DIR"), "/lxc_rootfs"))
@@ -45,7 +43,7 @@ impl Runner {
             .procfsmount("/proc")
             .uidmap(1001)
             .gidmap(100)
-            .bindmount_rw(temp_home.to_str().unwrap(), "/home")
+            .bindmount_rw(temp_home, "/home")
             // FIXME: This needs to set resource limit
             // .setrlimit(hakoniwa::Rlimit::*, soft_limit, hard_limit)
             .clone()
@@ -53,7 +51,7 @@ impl Runner {
 
     pub async fn new() -> Result<Self, ()> {
         let temp_home = Self::create_home().await;
-        let container = Self::create_container(&temp_home);
+        let container = Self::create_container(temp_home.to_str().unwrap());
 
         Ok(Self {
             container,

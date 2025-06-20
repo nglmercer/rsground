@@ -1,4 +1,5 @@
-import { OtOperation, RsCursor } from "@features/editor/types";
+import { OpSeq } from "frontend-wasm";
+import { RsCursor } from "@features/editor/types";
 import { AccessLevel } from "./access";
 
 export enum ClientMessageKind {
@@ -43,7 +44,7 @@ export type ClientMessage<S extends ClientMessageKind = ClientMessageKind> = {
     action: ClientMessageKind.Sync;
     file: string;
     revision: number;
-    actions: Array<OtOperation>;
+    actions: OpSeq;
   };
   [ClientMessageKind.SyncCursor]: {
     action: ClientMessageKind.SyncCursor;

@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Duration;
 
 use actix_ws as ws;
@@ -6,47 +8,54 @@ use tokio::sync::broadcast;
 use uuid::Uuid;
 
 use crate::auth::jwt::RgUserData;
+use crate::collab::Document;
 use crate::http_errors::HttpErrors;
 use crate::project::AccessLevel;
 use crate::state::AppState;
+use crate::utils::ArcStr;
 
-use super::messages::ServerMessage;
+use super::messages::{InternalMessage, ServerMessage};
 
 pub struct RgWebsocket {
     pub app_state: AppState,
     pub access: AccessLevel,
+    pub internal: broadcast::Receiver<InternalMessage>,
     pub broadcast: broadcast::Receiver<ServerMessage>,
     pub project_id: Uuid,
-    pub session_id: String,
+    pub session_id: ArcStr,
     pub user_info: RgUserData,
+    pub sync_docs: HashMap<ArcStr, (Arc<Document>, usize)>,
 }
 
 impl RgWebsocket {
-    pub fn join_project(
+    pub async fn join_project(
         app_state: AppState,
         user_info: RgUserData,
         project_id: Uuid,
         password: Option<String>,
     ) -> Result<Self, HttpErrors> {
-        let (broadcast, access) = {
-            let mut manager = app_state.get_manager();
-            let Ok(project) = manager.get_project_mut(project_id) else {
+        let (internal, broadcast, access) = {
+            let Ok(project) = app_state.get_project(project_id).await else {
                 return Err(HttpErrors::ProjectDoesNotExist);
             };
+            let mut project = project.write().await;
 
             (
+                project.internal.subscribe(),
                 project.broadcast.subscribe(),
-                project.join_project(&user_info.id, password)?,
+                project.join_project(user_info.id.clone(), password)?,
             )
         };
 
         let ws = Self {
+            access,
             app_state,
             broadcast,
-            user_info,
+            internal,
             project_id,
-            access,
-            session_id: Uuid::new_v4().to_string(),
+            sync_docs: Default::default(),
+            session_id: Uuid::new_v4().to_string().as_str().into(),
+            user_info,
         };
 
         Ok(ws)
@@ -63,11 +72,10 @@ impl RgWebsocket {
                     _ = ping.tick() => {
                         _ = session.text("ping").await;
                     },
-                    msg = self.broadcast.recv() => {
-                        let Ok(msg) = msg else {
-                            break;
-                        };
-
+                    Ok(msg) = self.internal.recv() => {
+                        self.handle_internal(msg, &mut session).await;
+                    }
+                    Ok(msg) = self.broadcast.recv() => {
                         self.handle_broadcast(msg, &mut session).await;
                     },
                     msg = stream.next() => {

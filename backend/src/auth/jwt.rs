@@ -6,20 +6,21 @@ use serde::{Deserialize, Serialize};
 
 use crate::expect_var;
 use crate::http_errors::HttpErrors;
+use crate::utils::ArcStr;
 
 pub static JWT_SECRET: LazyLock<String> = LazyLock::new(|| expect_var!("JWT_SECRET"));
 const JWT_EXP: TimeDelta = Duration::hours(12);
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RgUserData {
-    pub id: String,
-    pub name: String,
+    pub id: ArcStr,
+    pub name: ArcStr,
     pub is_guest: bool,
     pub exp: i64,
 }
 
 impl RgUserData {
-    pub fn new(id: String, name: String, is_guest: bool) -> Self {
+    pub fn new(id: ArcStr, name: ArcStr, is_guest: bool) -> Self {
         let exp = Utc::now() + JWT_EXP;
 
         Self {
@@ -70,6 +71,6 @@ pub fn get_auth_token(req: &HttpRequest) -> Option<&str> {
 }
 
 pub fn get_user_info(req: &HttpRequest) -> Result<RgUserData, HttpErrors> {
-    let token = get_auth_token(&req).ok_or_else(|| HttpErrors::NoTokenProvided)?;
+    let token = get_auth_token(req).ok_or_else(|| HttpErrors::NoTokenProvided)?;
     decode(token).ok_or(HttpErrors::InvalidJWT)
 }

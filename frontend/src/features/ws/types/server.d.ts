@@ -1,4 +1,4 @@
-import { OtOperation, RsCursor } from "@features/editor/types";
+import { RsCursor, UserOperation } from "@features/editor/types";
 import { AccessLevel } from "./access";
 import { OutputChannel } from "./output_channel";
 
@@ -50,7 +50,7 @@ export type ServerMessage<S extends ServerMessageKind = ServerMessageKind> = {
     action: ServerMessageKind.Sync;
     file: string;
     revision: number;
-    actions: Array<OtOperation>;
+    actions: Array<UserOperation>;
   };
   [ServerMessageKind.SyncOutput]: {
     action: ServerMessageKind.SyncOutput;

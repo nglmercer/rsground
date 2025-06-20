@@ -453,6 +453,7 @@ dependencies = [
  "actix-ws",
  "actix_error_proc",
  "awc",
+ "bytecount",
  "chrono",
  "dotenv",
  "env_logger",
@@ -463,6 +464,7 @@ dependencies = [
  "log",
  "oauth2",
  "once_cell",
+ "operational-transform",
  "reqwest 0.12.15",
  "rsground-runner",
  "serde",
@@ -574,6 +576,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1628fb46dfa0b37568d12e5edd512553eccf6a22a78e8bde00bb4aed84d5bdbf"
 
 [[package]]
+name = "bytecount"
+version = "0.6.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "175812e0be2bccb6abe50bb8d566126198344f707e304f45c648fd8f2cc0365e"
+
+[[package]]
 name = "bytes"
 version = "1.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -631,6 +639,16 @@ name = "colorchoice"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b63caa9aa9397e2d9480a9b13673856c78d8ac123288526c37d7839f2a86990"
+
+[[package]]
+name = "console_error_panic_hook"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a06aeb73f470f66dcdbf7223caeebb85984942f22f1adb2a088cf9668146bbbc"
+dependencies = [
+ "cfg-if",
+ "wasm-bindgen",
+]
 
 [[package]]
 name = "cookie"
@@ -866,6 +884,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e13624c2627564efccf4934284bdd98cbaa14e79b0b5a141218e507b3a823456"
 dependencies = [
  "percent-encoding",
+]
+
+[[package]]
+name = "frontend-wasm"
+version = "0.1.0"
+dependencies = [
+ "bytecount",
+ "console_error_panic_hook",
+ "js-sys",
+ "operational-transform",
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -1740,6 +1771,16 @@ dependencies = [
  "libc",
  "pkg-config",
  "vcpkg",
+]
+
+[[package]]
+name = "operational-transform"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fcdc542261d37288fd18ccb2eb1fdf333d8d10d12cce21d3f586d6e74a5511df"
+dependencies = [
+ "bytecount",
+ "serde",
 ]
 
 [[package]]

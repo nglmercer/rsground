@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 
 use actix::{Actor, ActorResponse, Addr, Context, Handler, Message, WrapFuture};
 use rsground_runner::Runner;
-use tokio::sync::{broadcast, oneshot, Notify};
+use tokio::sync::{broadcast, oneshot};
 use uuid::Uuid;
 
 use crate::ws::messages::{OutputChannel, ServerMessage};
@@ -159,7 +159,6 @@ async fn execute(project: ProjectExecuter) -> Result<(), ()> {
         return Err(());
     }
     log::trace!("[Execute] running in {project_id}");
-
 
     let abort = {
         let (tx, rx) = oneshot::channel::<()>();
