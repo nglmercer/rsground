@@ -1,4 +1,5 @@
 pub mod error;
+pub mod hakoniwa_ext;
 
 use hakoniwa::{Child, Command, Container, ExitStatus, Output};
 use nix::libc::pid_t;
@@ -138,23 +139,36 @@ impl Runner {
         let stderr = tokio::spawn(stderr_fn(stderr));
 
         let child_pid = Pid::from_raw(child.id() as pid_t);
-        let abort_task = tokio::spawn(async move {
-            let Some(abort) = abort else {
-                return;
-            };
-
-            _ = abort.await;
-
-            println!("[[[[KILL]]]]");
-            _ = signal::kill(child_pid, Signal::SIGKILL);
-        });
-
-        let status = tokio::task::spawn_blocking(move || child.wait());
+        let status = if let Some(abort) = abort {
+            tokio::spawn(async move {
+                loop {
+                    tokio::select! {
+                        _ = abort => {
+                            println!("[[[[KILL]]]]");
+                            _ = signal::kill(child_pid, Signal::SIGKILL);
+                            return Ok(ExitStatus {
+                                code: 137,
+                                reason: "Aborted".to_owned(),
+                                exit_code: None,
+                                rusage: None,
+                            });
+                        },
+                        else => {
+                            return Ok(ExitStatus {
+                                code: 137,
+                                reason: "Aborted".to_owned(),
+                                exit_code: None,
+                                rusage: None,
+                            });
+                        }
+                    }
+                }
+            })
+        } else {
+            tokio::task::spawn_blocking(move || child.wait())
+        };
 
         let (status, stdout, stderr) = tokio::join!(status, stdout, stderr);
-
-        // Cancel abort task
-        abort_task.abort();
 
         let status = status
             .inspect_err(|err| eprintln!("Join error: {err}"))
