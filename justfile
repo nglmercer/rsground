@@ -12,7 +12,7 @@
 
   echo -e "\x1b[1;30;43m  Downloading vendors  \x1b[0m"
 
-  # just setup-vendor-download rust-1.85.0
+  # just setup-vendor-download rust-stable-2025-03-18
   # just setup-vendor-download bash-interactive-5.2
   # just setup-vendor-download coreutils-full-9.6
 
@@ -41,7 +41,7 @@
   just setup-vendor-uncompress openssl-3.4.1
   just setup-vendor-uncompress patchelf-0.15.0
   just setup-vendor-uncompress readline-8.2p13
-  just setup-vendor-uncompress rust-1.85.0
+  just setup-vendor-uncompress rust-stable-2025-03-18
   just setup-vendor-uncompress xgcc-14-20241116-libgcc
   just setup-vendor-uncompress zlib-1.3.1
 
@@ -77,7 +77,7 @@
   just setup-vendor-rootfs openssl-3.4.1
   just setup-vendor-rootfs patchelf-0.15.0
   just setup-vendor-rootfs readline-8.2p13
-  just setup-vendor-rootfs rust-1.85.0
+  just setup-vendor-rootfs rust-stable-2025-03-18
   just setup-vendor-rootfs xgcc-14-20241116-libgcc
   just setup-vendor-rootfs zlib-1.3.1
 
@@ -106,7 +106,7 @@ dev:
     echo -e "\x1b[1;32m  \`{{NAME}}.tar.xz\` already downloaded\x1b[0m"; \
   else \
     echo -e "\x1b[1;33m  Downloading \`{{NAME}}.tar.xz\`\x1b[0m"; \
-    curl -L https://pub-8961b8a1fddb4f0185a74957df0591c7.r2.dev/{{NAME}}.tar.xz -o backend/runner/lxc_vendor/{{NAME}}.tar.xz; \
+    curl -L https://vendor.rsground.rustlang-es.org/{{NAME}}.tar.xz -o backend/runner/lxc_vendor/{{NAME}}.tar.xz; \
   fi
 
 @setup-vendor-uncompress NAME:
