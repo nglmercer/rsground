@@ -16,14 +16,12 @@
     lib = pkgs.lib;
     fenix = fenix-pkg.packages.${system};
 
-    toolchain = fenix.toolchainOf {
-      channel = "1.85.0";
-      sha256 = "sha256-AJ6LX/Q/Er9kS15bn9iflkUwcgYqRQxiOIL2ToVAXaU=";
+    rustToolchainDef = {
+      channel = "1.88.0";
+      sha256 = "sha256-Qxt8XAuaUR2OMdKbN4u8dBJOhSHxS+uS06Wl9+flVEk=";
     };
-    wasmToolchain = fenix.targets.wasm32-unknown-unknown.toolchainOf {
-      channel = "1.85.0";
-      sha256 = "sha256-AJ6LX/Q/Er9kS15bn9iflkUwcgYqRQxiOIL2ToVAXaU=";
-    };
+    toolchain = fenix.toolchainOf rustToolchainDef;
+    wasmToolchain = fenix.targets.wasm32-unknown-unknown.toolchainOf rustToolchainDef;
 
     commonBuildInputs = with pkgs; [
       just
@@ -61,7 +59,8 @@
       LD_LIBRARY_PATH = "${lib.makeLibraryPath [pkgs.libseccomp]}";
 
       shellHook = ''
-        cd frontend && pnpm install --frozen-lockfile || pnpm install
+        if [ ! -e frontend-wasm/pkg ]; then wasm-pack build frontend-wasm; fi
+        pnpm install -C frontend --frozen-lockfile || pnpm install -C frontend
         just setup-vendor-if-not
       '';
     };
