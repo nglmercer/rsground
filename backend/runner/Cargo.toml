@@ -9,6 +9,7 @@ authors = ["Apika Luca"]
 test = true
 
 [dependencies]
+async-io = "2.4.1"
 hakoniwa = "1.1.0"
 lsp-types = "0.97.0"
 nix = "0.29.0"

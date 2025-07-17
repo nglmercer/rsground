@@ -83,7 +83,7 @@ async fn execute(project: ProjectExecuter) -> Result<(), ()> {
                 let buf = &mut [0; 2048];
 
                 loop {
-                    let Ok(size) = stdout.read(buf) else {
+                    let Ok(size) = stdout.read(buf).await else {
                         log::trace!("Cannot read");
                         break;
                     };

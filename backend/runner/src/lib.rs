@@ -1,7 +1,9 @@
 pub mod error;
 pub mod hakoniwa_ext;
 
+use async_io::Async;
 use hakoniwa::{Child, Command, Container, ExitStatus, Output};
+use hakoniwa_ext::{AsyncOsReader, HakoniwaChildExt};
 use nix::libc::pid_t;
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
@@ -9,7 +11,9 @@ pub use os_pipe::{PipeReader, PipeWriter};
 use std::future::Future;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 use tokio::sync::oneshot;
+use tokio::time::Interval;
 use tokio::{fs, io};
 
 pub const BASE_ENV: [(&str, &str); 3] = [
@@ -92,12 +96,12 @@ impl Runner {
     }
 
     pub async fn collect_output(cmd: &mut Command) -> Result<Output, hakoniwa::Error> {
-        async fn collect(stream: Option<PipeReader>) -> Vec<u8> {
+        async fn collect(stream: Option<AsyncOsReader>) -> Vec<u8> {
             let mut buf = Vec::new();
 
             let Some(mut stream) = stream else { return buf };
 
-            _ = stream.read_to_end(&mut buf);
+            _ = stream.read_to_end(&mut buf).await;
 
             buf
         }
@@ -120,10 +124,10 @@ impl Runner {
     where
         Stdout: Default + Send + 'static,
         StdoutAsync: Future<Output = Stdout> + Send + 'static,
-        StdoutFn: FnOnce(Option<PipeReader>) -> StdoutAsync,
+        StdoutFn: FnOnce(Option<AsyncOsReader>) -> StdoutAsync,
         Stderr: Default + Send + 'static,
         StderrAsync: Future<Output = Stderr> + Send + 'static,
-        StderrFn: FnOnce(Option<PipeReader>) -> StderrAsync,
+        StderrFn: FnOnce(Option<AsyncOsReader>) -> StderrAsync,
     {
         let mut child = cmd
             .envs(BASE_ENV)
@@ -133,18 +137,24 @@ impl Runner {
             .stderr(hakoniwa::Stdio::MakePipe)
             .spawn()?;
 
-        let stdout = child.stdout.take();
+        let stdout = child.stdout.take().map(AsyncOsReader::from);
         let stdout = tokio::spawn(stdout_fn(stdout));
-        let stderr = child.stderr.take();
+        let stderr = child.stderr.take().map(AsyncOsReader::from);
         let stderr = tokio::spawn(stderr_fn(stderr));
 
         let child_pid = Pid::from_raw(child.id() as pid_t);
-        let status = if let Some(abort) = abort {
+        let status = if let Some(mut abort) = abort {
             tokio::spawn(async move {
+                let mut status_check_interval = tokio::time::interval(Duration::from_millis(100));
+
                 loop {
                     tokio::select! {
-                        _ = abort => {
-                            println!("[[[[KILL]]]]");
+                        _ = status_check_interval.tick() => {
+                            if let Some(status) = child.try_wait() {
+                                return Ok(status)
+                            }
+                        }
+                        _ = &mut abort => {
                             _ = signal::kill(child_pid, Signal::SIGKILL);
                             return Ok(ExitStatus {
                                 code: 137,
@@ -153,14 +163,6 @@ impl Runner {
                                 rusage: None,
                             });
                         },
-                        else => {
-                            return Ok(ExitStatus {
-                                code: 137,
-                                reason: "Aborted".to_owned(),
-                                exit_code: None,
-                                rusage: None,
-                            });
-                        }
                     }
                 }
             })
