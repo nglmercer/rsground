@@ -12,7 +12,10 @@ use crate::ws::messages::ServerMessageError;
 use super::Project;
 
 const MAIN_RS: &str = r#"fn main() {
-  println!("Hello World");
+    for i in 0..30 {
+        println!("[{i}] \x1b[31mHello \x1b[1mWorld\x1b[0m!");
+        std::thread::sleep(std::time::Duration::from_millis(100))
+    }
 }"#;
 
 pub struct ProjectManager {
@@ -26,10 +29,12 @@ impl ProjectManager {
         }
     }
 
-    pub fn new_project(&mut self, owner: &RgUserData, name: ArcStr) -> Arc<RwLock<Project>> {
-        let mut project = Project::new(owner.id.clone(), name);
+    pub async fn new_project(&mut self, owner: &RgUserData, name: ArcStr) -> Arc<RwLock<Project>> {
+        let mut project = Project::new(owner.id.clone(), name).await;
 
-        project.add_file("main.rs", Document::new_with(MAIN_RS.to_string()));
+        project
+            .add_file("main.rs", Document::new_with(MAIN_RS.to_string()))
+            .await;
 
         self.add_project(project)
     }

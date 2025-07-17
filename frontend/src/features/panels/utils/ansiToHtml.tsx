@@ -45,7 +45,7 @@ const ANSI_8_BIT_COLORS = {
 };
 
 export function ansiToHtml(text: string): HTMLElement {
-  let node = <pre /> as HTMLElement;
+  let node = <pre class={styles.mods_reset} /> as HTMLElement;
 
   let remaining = text;
   let lastIndex = remaining.indexOf("\x1b");
@@ -80,8 +80,8 @@ export function ansiToHtml(text: string): HTMLElement {
       addAnsiStyles(newNode, ansiCode);
 
       // Add node only if there are non-whitespace characters
+      // Reduce children depth
       if (accumulatedContent.length) {
-        // Reduce children depth
         if (newNode.dataset["ansi"] == "0") {
           node.append(newNode);
         } else {

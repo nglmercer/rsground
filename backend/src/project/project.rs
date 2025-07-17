@@ -1,16 +1,19 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
+use actix::Addr;
 use futures::StreamExt;
+use rsground_runner::Runner;
 use tokio::sync::broadcast;
 use uuid::Uuid;
 
 use crate::auth::jwt::RgUserData;
 use crate::collab::{Document, DocumentInfo};
 use crate::http_errors::HttpErrors;
-use crate::utils::{ArcStr, AsyncInto, ToStream, EMPTY_STR};
+use crate::utils::{ArcStr, AsyncDefault, AsyncInto, ToStream, EMPTY_STR};
 use crate::ws::messages::{InternalMessage, ServerMessage};
 
+use super::project_runner::{AbortNotify, Execute, ProjectExecuter};
 use super::AccessLevel;
 
 pub struct Project {
@@ -24,12 +27,21 @@ pub struct Project {
     pub password: Option<String>,
     pub internal: broadcast::Sender<InternalMessage>,
     pub broadcast: broadcast::Sender<ServerMessage>,
+    runner: Arc<Runner>,
+    executer: Addr<ProjectExecuter>,
+    execution: AbortNotify,
 }
 
-impl Default for Project {
-    fn default() -> Self {
+impl AsyncDefault for Project {
+    async fn default() -> Self {
+        let id = Uuid::new_v4();
+        let broadcast = broadcast::channel(u8::MAX as usize).0;
+
+        let (runner, execution, executer) =
+            ProjectExecuter::start(id.clone(), broadcast.clone()).await;
+
         Self {
-            id: Uuid::new_v4(),
+            id,
             name: EMPTY_STR.clone(),
             owner: EMPTY_STR.clone(),
             documents: HashMap::new(),
@@ -38,17 +50,38 @@ impl Default for Project {
             is_public: true,
             password: None,
             internal: broadcast::channel(u8::MAX as usize).0,
-            broadcast: broadcast::channel(u8::MAX as usize).0,
+            broadcast,
+            runner,
+            executer,
+            execution,
         }
     }
 }
 
 impl Project {
-    pub fn new(owner: ArcStr, name: ArcStr) -> Self {
+    pub async fn new(owner: ArcStr, name: ArcStr) -> Self {
         Project {
             name,
             owner,
-            ..Default::default()
+            ..Project::default().await
+        }
+    }
+
+    pub fn get_runner(&self) -> Arc<Runner> {
+        self.runner.clone()
+    }
+
+    pub async fn execute(&self) {
+        if self.execution.lock().map_or(false, |e| e.is_some()) {
+            return;
+        }
+
+        _ = self.executer.do_send(Execute);
+    }
+
+    pub fn stop_execute(&self) {
+        if let Some(execution) = self.execution.lock().unwrap().take() {
+            _ = execution.send(());
         }
     }
 
@@ -69,9 +102,17 @@ impl Project {
         self.documents.get(file_name).cloned()
     }
 
-    pub fn add_file(&mut self, path: impl Into<ArcStr>, document: Document) -> Arc<Document> {
+    pub async fn add_file(&mut self, path: impl Into<ArcStr>, document: Document) -> Arc<Document> {
+        let path: ArcStr = path.into();
+
+        _ = self
+            .get_runner()
+            .create_file(&path.to_string(), &document.text().await)
+            .await
+            .inspect_err(|err| log::error!("{err}"));
+
         self.documents
-            .entry(path.into())
+            .entry(path)
             .insert_entry(document.into())
             .get()
             .clone()
@@ -110,7 +151,7 @@ impl Project {
             owner,
             documents,
             is_public: self.is_public,
-            ..Default::default()
+            ..Project::default().await
         }
     }
 

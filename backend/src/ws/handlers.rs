@@ -173,6 +173,10 @@ impl RgWebsocket {
 
         match msg {
             ws::AggregatedMessage::Text(text) => {
+                if text == "ping" {
+                    return;
+                }
+
                 log::trace!("New message: {text}");
 
                 match serde_json::from_str::<ClientMessage>(&text) {
@@ -243,13 +247,23 @@ impl RgWebsocket {
 
                 Err(ServerMessageError::None)
             }
+            ClientMessage::Execute => {
+                self.access.need_editor()?;
+
+                let project = self.app_state.get_project(self.project_id).await?;
+                let project = project.read().await;
+
+                project.execute().await;
+
+                Err(ServerMessageError::None)
+            }
             ClientMessage::FileCreate { file } => {
                 self.access.need_editor()?;
 
                 let project = self.app_state.get_project(self.project_id).await?;
                 let mut project = project.write().await;
 
-                let new_doc = project.add_file(file.clone(), Document::new());
+                let new_doc = project.add_file(file.clone(), Document::new()).await;
 
                 _ = project.internal.send(InternalMessage::FileCreate {
                     path: file,
@@ -271,6 +285,7 @@ impl RgWebsocket {
                 let mut project = project.write().await;
 
                 if project.rm_file(&file).is_some() {
+                    // TODO: remove file in runner
                     let msg = ServerMessage::ProjectFiles {
                         files: project.get_files().await,
                     };
@@ -304,6 +319,17 @@ impl RgWebsocket {
 
                 Err(ServerMessageError::None)
             }
+            ClientMessage::StopExecute => {
+                self.access.need_editor()?;
+
+                let project = self.app_state.get_project(self.project_id).await?;
+                let project = project.read().await;
+
+                log::trace!("Stop process in {}", self.project_id);
+                project.stop_execute();
+
+                Err(ServerMessageError::None)
+            }
             ClientMessage::Sync {
                 file,
                 revision,
@@ -313,6 +339,7 @@ impl RgWebsocket {
 
                 let project = self.app_state.get_project(self.project_id).await?;
                 let mut project = project.write().await;
+                let runner = project.get_runner();
 
                 let doc = project.get_file(&file).ok_or_else(|| {
                     log::error!("File {file:?} not found in {:?}", self.project_id);
@@ -327,6 +354,11 @@ impl RgWebsocket {
                         .broadcast
                         .send(ServerMessage::Error { message: err })
                 }
+
+                _ = runner
+                    .create_file(&file, &doc.text().await)
+                    .await
+                    .inspect_err(|err| log::error!("{err}"));
 
                 dbg!(&doc.text().await);
 

@@ -1,5 +1,6 @@
 import { RsCursor, UserOperation } from "@features/editor/types";
 import { AccessLevel } from "./access";
+import { OutputChannel } from "./output_channel";
 
 export enum ServerMessageKind {
   Error = "error",
@@ -9,6 +10,9 @@ export enum ServerMessageKind {
   UserConnected = "user_connected",
   RequestAccess = "request_access",
   Sync = "sync",
+  SyncOutput = "sync_output",
+  SyncOutputStart = "sync_output_start",
+  SyncOutputEnd = "sync_output_end",
   SyncCursors = "sync_cursors",
   Welcome = "welcome",
 }
@@ -47,6 +51,18 @@ export type ServerMessage<S extends ServerMessageKind = ServerMessageKind> = {
     file: string;
     revision: number;
     actions: Array<UserOperation>;
+  };
+  [ServerMessageKind.SyncOutput]: {
+    action: ServerMessageKind.SyncOutput;
+    channel: OutputChannel;
+    buf: Array<number>
+  };
+  [ServerMessageKind.SyncOutputStart]: {
+    action: ServerMessageKind.SyncOutputStart;
+  };
+  [ServerMessageKind.SyncOutputEnd]: {
+    action: ServerMessageKind.SyncOutputEnd;
+    exit_code: number;
   };
   [ServerMessageKind.SyncCursors]: {
     action: ServerMessageKind.SyncCursors;

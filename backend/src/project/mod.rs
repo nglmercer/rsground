@@ -2,6 +2,7 @@
 mod project;
 mod project_access;
 mod project_manager;
+mod project_runner;
 pub mod routes;
 
 pub use project::Project;

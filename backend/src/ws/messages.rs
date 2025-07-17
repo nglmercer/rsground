@@ -17,6 +17,7 @@ pub enum ClientMessage {
         is_public: Option<bool>,
         password: Option<String>,
     },
+    Execute,
     FileCreate {
         file: ArcStr,
     },
@@ -27,6 +28,7 @@ pub enum ClientMessage {
         user_id: ArcStr,
         access: AccessLevel,
     },
+    StopExecute,
     Sync {
         file: ArcStr,
         revision: usize,
@@ -75,6 +77,14 @@ pub enum ServerMessage {
         file: ArcStr,
         cursors: HashMap<ArcStr, Vec<(u32, u32)>>,
     },
+    SyncOutput {
+        channel: OutputChannel,
+        buf: Vec<u8>,
+    },
+    SyncOutputStart,
+    SyncOutputEnd {
+        exit_code: u8,
+    },
     Welcome {
         session_id: ArcStr,
         files: HashMap<ArcStr, DocumentInfo>,
@@ -82,6 +92,13 @@ pub enum ServerMessage {
         // Only for owner
         requests: Option<HashMap<ArcStr, ArcStr>>,
     },
+}
+
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OutputChannel {
+    Stdout,
+    Stderr,
 }
 
 #[derive(Debug, thiserror::Error)]
