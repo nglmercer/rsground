@@ -7,5 +7,5 @@ export interface ProjectInfo {
   users: Record<string, [string, AccessLevel]>,
   requests: Record<string, string>,
   is_public: boolean,
-  password?: string,
+  password?: string | null,
 }

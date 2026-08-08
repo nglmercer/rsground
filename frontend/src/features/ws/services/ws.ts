@@ -1,7 +1,7 @@
 import { getOwner, observable, Owner, runWithOwner, untrack } from "solid-js";
 
 import { authInfo } from "@features/auth/stores";
-import { projectInfo } from "@features/colab/stores";
+import { projectInfo, setProjectInfo } from "@features/colab/stores";
 import { openFile } from "@features/editor/services";
 import { syncFiles } from "@features/file-explorer/services";
 import { BACKEND_HOST } from "@services";
@@ -56,6 +56,8 @@ export function startWebsocket() {
 
   subs.push(onWsMessage(ServerMessageKind.Welcome, (msg) => {
     setWsSessionId(msg.session_id);
+
+    if (msg.requests) setProjectInfo("requests", msg.requests);
 
     syncFiles(msg.files);
 
@@ -150,7 +152,7 @@ export function onWsMessage(
 
   return () => {
     let idx = ws_callbacks.findIndex((v) => v == cb);
-    ws_callbacks.splice(idx, 1);
+    if (idx >= 0) ws_callbacks.splice(idx, 1);
   };
 }
 
