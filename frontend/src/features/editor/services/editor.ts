@@ -30,7 +30,7 @@ export async function openFile(filepath: string) {
 
 export function startReceivingSync() {
   onWsMessage(ServerMessageKind.Sync, (msg) => {
-    if (unwrap(editingFiles)[msg.file].editor_open) return;
+    if (unwrap(editingFiles)[msg.file]?.editor_open) return;
 
     setEditingFiles(msg.file, "synced_revision", msg.revision);
 

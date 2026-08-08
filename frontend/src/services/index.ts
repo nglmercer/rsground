@@ -1,1 +1,2 @@
-export const BACKEND_HOST = import.meta.env.VITE_BACKEND_HOST;
+export const BACKEND_HOST =
+  import.meta.env.VITE_BACKEND_HOST || "http://localhost:8080";

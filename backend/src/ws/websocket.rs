@@ -66,6 +66,10 @@ impl RgWebsocket {
             self.handle_welcome(&mut session).await;
 
             let mut ping = tokio::time::interval(Duration::from_secs(5));
+            // `interval` fires immediately on its first tick. Delay the
+            // first heartbeat so it cannot overtake the welcome/connection
+            // notifications during the handshake.
+            ping.tick().await;
 
             loop {
                 tokio::select! {

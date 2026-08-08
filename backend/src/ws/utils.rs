@@ -10,22 +10,20 @@ pub fn parse_protocol_header(req: &HttpRequest) -> Result<(Vec<String>, KeyValue
     let Some(header) = req.headers().get("sec-websocket-protocol") else {
         return Err(HttpErrors::NoTokenProvided);
     };
-    let header = header
-        .to_str()
-        .map_err(|_| HttpErrors::NoTokenProvided)?
-        .chars()
-        .filter(|c| !c.is_whitespace())
-        .collect::<String>();
+    let header = header.to_str().map_err(|_| HttpErrors::NoTokenProvided)?;
 
-    let elements = header.splitn(2, ",").collect::<Vec<&str>>();
-
-    for elem in elements {
-        let value = elem.splitn(2, ".").collect::<Vec<&str>>();
-
-        if value.len() > 1 {
-            key_value.push((value[0].to_string(), value[1].to_string()));
+    for elem in header
+        .split(',')
+        .map(str::trim)
+        .filter(|elem| !elem.is_empty())
+    {
+        if let Some((key, value)) = elem.split_once('.') {
+            if key.is_empty() || value.is_empty() {
+                return Err(HttpErrors::NoTokenProvided);
+            }
+            key_value.push((key.to_owned(), value.to_owned()));
         } else {
-            protocols.push(value[0].to_string());
+            protocols.push(elem.to_owned());
         }
     }
 

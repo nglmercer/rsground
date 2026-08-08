@@ -85,7 +85,8 @@ async fn rust_multi_container_executable() {
 
     executer_runner
         .copy_file_from_runner(&compiler_runner, "main", "main")
-        .await;
+        .await
+        .expect("Cannot copy executable");
 
     let output = Runner::collect_output(&mut executer_runner.cmd("/home/main", [] as [&str; 0]))
         .await

@@ -11,7 +11,7 @@ use crate::state::AppState;
 use crate::utils::ArcStr;
 
 pub struct OAuthData {
-    pub client: oauth2::basic::BasicClient,
+    pub client: Option<oauth2::basic::BasicClient>,
 }
 
 #[derive(Deserialize)]
@@ -21,8 +21,13 @@ pub struct AuthRequest {
 
 #[get("/auth")]
 pub async fn auth(oauth: web::Data<OAuthData>) -> impl Responder {
-    let (auth_url, _csrf_token) = oauth
-        .client
+    let Some(client) = oauth.client.as_ref() else {
+        return HttpResponse::ServiceUnavailable().json(serde_json::json!({
+            "error": "GitHub OAuth is not configured"
+        }));
+    };
+
+    let (auth_url, _csrf_token) = client
         .authorize_url(CsrfToken::new_random)
         .add_scope(Scope::new("read:user".to_string()))
         .url();
@@ -45,10 +50,13 @@ async fn callback(
     query: web::Query<AuthRequest>,
     oauth_data: web::Data<OAuthData>,
 ) -> HttpResult<HttpErrors> {
+    let Some(client) = oauth_data.client.as_ref() else {
+        return Err(HttpErrors::OAuthNotConfigured);
+    };
+
     let code = AuthorizationCode::new(query.code.clone());
 
-    let token = oauth_data
-        .client
+    let token = client
         .exchange_code(code)
         .request_async(oauth2::reqwest::async_http_client)
         .await
@@ -93,14 +101,14 @@ async fn login_guest(
     state: web::Data<AppState>,
     body: web::Json<GuestLoginRequest>,
 ) -> HttpResult<HttpErrors> {
-    let guest_name = &body.guest_name;
+    let guest_name = body.guest_name.trim();
+    if guest_name.is_empty() || guest_name.chars().count() > 64 {
+        return Err(HttpErrors::InvalidGuestName);
+    }
+
     let guest_uuid = Uuid::new_v4().to_string();
 
-    let user_data = RgUserData::new(
-        guest_uuid.as_str().into(),
-        guest_name.as_str().into(),
-        false,
-    );
+    let user_data = RgUserData::new(guest_uuid.as_str().into(), guest_name.into(), true);
 
     state
         .add_username(user_data.id.clone(), user_data.name.clone())
@@ -134,8 +142,13 @@ async fn update_name(
 
     let uuid = token_data.id;
     let new_name = body.into_inner().new_name;
+    let new_name = new_name.trim();
+    if new_name.is_empty() || new_name.chars().count() > 64 {
+        return Err(HttpErrors::InvalidGuestName);
+    }
+    let new_name: ArcStr = new_name.into();
 
-    let user_data = RgUserData::new(uuid.clone(), new_name.clone(), false);
+    let user_data = RgUserData::new(uuid.clone(), new_name.clone(), true);
 
     state
         .add_username(user_data.id.clone(), user_data.name.clone())
@@ -147,5 +160,6 @@ async fn update_name(
         "jwt": jwt,
         "id": uuid,
         "name": new_name,
+        "is_guest": true,
     })))
 }

@@ -26,7 +26,7 @@ export type ServerMessage<S extends ServerMessageKind = ServerMessageKind> = {
     action: ServerMessageKind.ProjectConfig;
     name: string;
     is_public: boolean;
-    password?: string;
+    password?: string | null;
   };
   [ServerMessageKind.ProjectFiles]: {
     action: ServerMessageKind.ProjectFiles;
@@ -40,6 +40,7 @@ export type ServerMessage<S extends ServerMessageKind = ServerMessageKind> = {
   [ServerMessageKind.UserConnected]: {
     action: ServerMessageKind.UserConnected;
     user_id: string;
+    user_name: string;
   };
   [ServerMessageKind.RequestAccess]: {
     action: ServerMessageKind.RequestAccess;
@@ -73,7 +74,8 @@ export type ServerMessage<S extends ServerMessageKind = ServerMessageKind> = {
     action: ServerMessageKind.Welcome;
     session_id: string;
     files: Record<string, DocumentInfo>;
-    users: Record<string, AccessLevel>;
+    users: Record<string, [string, AccessLevel]>;
+    requests?: Record<string, string>;
   };
 }[S];
 

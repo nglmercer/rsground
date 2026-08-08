@@ -114,7 +114,7 @@ export function CodeEditor(props: CodeEditorProps) {
       onEditorMount={(editor) => {
         setEditor(editor);
         editor.setTabFocusMode(true);
-        syncExtensionListener(editor, file.data.fullPath);
+        onCleanup(syncExtensionListener(editor, file.data.fullPath));
 
         observable(projectAccess).subscribe((access) => {
           editor.dispatch({

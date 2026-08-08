@@ -110,7 +110,7 @@ export async function createProject(
   owner: string,
   name: string = "Unnamed",
 ): Promise<string> {
-  let res = await fetch(`${BACKEND_HOST}/create/${name}`, {
+  let res = await fetch(`${BACKEND_HOST}/create/${encodeURIComponent(name)}`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${owner}`,
@@ -128,7 +128,8 @@ export async function fetchProject(
   project_id: string,
   password = "",
 ): Promise<ProjectInfo> {
-  let res = await fetch(`${BACKEND_HOST}/project/${project_id}?p=${password}`, {
+  const query = password ? `?p=${encodeURIComponent(password)}` : "";
+  let res = await fetch(`${BACKEND_HOST}/project/${project_id}${query}`, {
     method: "GET",
     headers: {
       Authorization: `Bearer ${untrack(authInfo)?.jwt}`,

@@ -1,4 +1,3 @@
-use std::io::Read;
 use std::sync::{Arc, Mutex};
 
 use actix::{Actor, ActorResponse, Addr, Context, Handler, Message, WrapFuture};
@@ -61,17 +60,34 @@ impl Handler<Execute> for ProjectExecuter {
 }
 
 async fn execute(project: ProjectExecuter) -> Result<(), ()> {
+    let execution = project.execution.clone();
+    let abort = {
+        let Ok(mut execution) = execution.lock() else {
+            return Err(());
+        };
+
+        if execution.is_some() {
+            return Ok(());
+        }
+
+        let (tx, rx) = oneshot::channel::<()>();
+        *execution = Some(tx);
+        rx
+    };
+
+    let result = execute_inner(project, abort).await;
+
+    if let Ok(mut execution) = execution.lock() {
+        *execution = None;
+    }
+
+    result
+}
+
+async fn execute_inner(project: ProjectExecuter, abort: oneshot::Receiver<()>) -> Result<(), ()> {
     let project_id = project.project_id;
     let broadcast = project.broadcast;
     let runner = project.runner;
-
-    let abort = {
-        let (tx, rx) = oneshot::channel::<()>();
-
-        *project.execution.lock().unwrap() = Some(tx);
-
-        rx
-    };
 
     macro_rules! stream {
         ($channel:expr) => {{
@@ -127,7 +143,7 @@ async fn execute(project: ProjectExecuter) -> Result<(), ()> {
     if !status.success() {
         log::error!("[Execute] compilation failed in {project_id}");
         _ = broadcast.send(ServerMessage::SyncOutputEnd {
-            exit_code: status.code as u8,
+            exit_code: status.code.clamp(0, u8::MAX as i32) as u8,
         });
 
         return Err(());
@@ -187,10 +203,8 @@ async fn execute(project: ProjectExecuter) -> Result<(), ()> {
     log::trace!("[Execute] finish in {project_id}");
 
     _ = broadcast.send(ServerMessage::SyncOutputEnd {
-        exit_code: exit_code.code as u8,
+        exit_code: exit_code.code.clamp(0, u8::MAX as i32) as u8,
     });
-
-    *project.execution.lock().unwrap() = None;
 
     Ok(())
 }

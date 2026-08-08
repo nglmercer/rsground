@@ -16,4 +16,5 @@ nix = "0.29.0"
 os_pipe = "1.2.1"
 thiserror.workspace = true
 tokio.workspace = true
+log = "0.4"
 uuid = { version = "1.16.0", features = ["v4"] }

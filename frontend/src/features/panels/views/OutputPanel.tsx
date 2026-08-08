@@ -20,10 +20,12 @@ export function OutputPanel() {
 
   onWsMessage(ServerMessageKind.SyncOutputStart, () => {
     setOutputPanel([]);
+    setExitCode(null);
+    decoder.decode();
   });
 
   onWsMessage(ServerMessageKind.SyncOutput, (msg) => {
-    const decoded = decoder.decode(new Uint8Array(msg.buf));
+    const decoded = decoder.decode(new Uint8Array(msg.buf), { stream: true });
 
     if (
       outputPanel.length === 0 ||
@@ -36,6 +38,14 @@ export function OutputPanel() {
   });
 
   onWsMessage(ServerMessageKind.SyncOutputEnd, (msg) => {
+    const remainder = decoder.decode();
+    if (remainder) {
+      if (outputPanel.length === 0) {
+        setOutputPanel(0, remainder);
+      } else {
+        setOutputPanel(outputPanel.length - 1, (prev) => prev + remainder);
+      }
+    }
     setExitCode(msg.exit_code)
   });
 

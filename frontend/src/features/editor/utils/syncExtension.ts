@@ -21,17 +21,31 @@ import {
 import { unicodeLength } from "./unicodeLength";
 import { applyOperationToView, syncAnnotationType } from "./applyOperation";
 
-let outstanding: OpSeq | null = null;
-let accumulated_changes: OpSeq | null = null;
+type PendingChanges = {
+  outstanding: OpSeq | null;
+  accumulated: OpSeq | null;
+};
+
+const pendingByFile = new Map<string, PendingChanges>();
+
+function pendingChanges(file: string): PendingChanges {
+  let pending = pendingByFile.get(file);
+  if (!pending) {
+    pending = { outstanding: null, accumulated: null };
+    pendingByFile.set(file, pending);
+  }
+  return pending;
+}
 
 export function syncExtension(file: FileNode) {
   return EditorView.updateListener.of(anyEventHandler(file));
 }
 
 export function syncExtensionListener(view: EditorView, file: string) {
-  onWsMessage(ServerMessageKind.Sync, (msg) => {
-    if (msg.file === file) {
+  const unsubscribe = onWsMessage(ServerMessageKind.Sync, (msg) => {
+    if (msg.file === file && editingFiles[msg.file]) {
       const actual_revision = editingFiles[msg.file].synced_revision;
+      const pending = pendingChanges(file);
 
       if (msg.revision > actual_revision) {
         console.warn("History message has start greater than last operation.");
@@ -49,31 +63,31 @@ export function syncExtensionListener(view: EditorView, file: string) {
         let { user_id, operation } = msg.actions[i];
         new_revision++;
         if (user_id === untrack(wsSessionId)) {
-          if (outstanding === null) {
+          if (pending.outstanding === null) {
             continue;
           }
 
-          outstanding = accumulated_changes;
-          accumulated_changes = null;
+          pending.outstanding = pending.accumulated;
+          pending.accumulated = null;
 
-          if (outstanding) {
+          if (pending.outstanding) {
             sendMessage(ClientMessageKind.Sync, {
               file,
               revision: new_revision,
-              actions: JSON.parse(outstanding.to_string()),
+              actions: JSON.parse(pending.outstanding.to_string()),
             });
           }
         } else {
           let opSeq = OpSeq.from_str(JSON.stringify(operation));
 
-          if (outstanding) {
-            const pair = outstanding.transform(opSeq)!;
-            outstanding = pair.first();
+          if (pending.outstanding) {
+            const pair = pending.outstanding.transform(opSeq)!;
+            pending.outstanding = pair.first();
             opSeq = pair.second();
 
-            if (accumulated_changes) {
-              const pair = accumulated_changes.transform(opSeq)!;
-              accumulated_changes = pair.first();
+            if (pending.accumulated) {
+              const pair = pending.accumulated.transform(opSeq)!;
+              pending.accumulated = pair.first();
               opSeq = pair.second();
             }
           }
@@ -101,9 +115,12 @@ export function syncExtensionListener(view: EditorView, file: string) {
       setEditingFiles(msg.file, "synced_revision", new_revision);
     }
   });
+
+  return unsubscribe;
 }
 
 function anyEventHandler(file: FileNode) {
+  const pending = pendingChanges(file.fullPath);
   let lastCursors: EditorSelection;
   const handleCursor = (selection: EditorSelection) => {
     if (lastCursors && selection.eq(lastCursors)) return;
@@ -155,17 +172,17 @@ function anyEventHandler(file: FileNode) {
     setSyncFiles(file.fullPath, update.state.doc.toString());
 
     // If there's is no pending to receive messages
-    if (outstanding == null) {
+    if (pending.outstanding == null) {
       sendMessage(ClientMessageKind.Sync, {
         file: file.fullPath,
         revision: editingFiles[file.fullPath].synced_revision,
         actions: JSON.parse(buffer.to_string()),
       });
-      outstanding = buffer;
-    } else if (accumulated_changes == null) {
-      accumulated_changes = buffer;
+      pending.outstanding = buffer;
+    } else if (pending.accumulated == null) {
+      pending.accumulated = buffer;
     } else {
-      accumulated_changes = accumulated_changes.compose(buffer);
+      pending.accumulated = pending.accumulated.compose(buffer);
     }
   };
 

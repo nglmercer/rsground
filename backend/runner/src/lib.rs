@@ -1,7 +1,7 @@
 pub mod error;
 pub mod hakoniwa_ext;
 
-use async_io::Async;
+use error::RunnerError;
 use hakoniwa::{Child, Command, Container, ExitStatus, Output};
 use hakoniwa_ext::{AsyncOsReader, HakoniwaChildExt};
 use nix::libc::pid_t;
@@ -9,11 +9,9 @@ use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
 pub use os_pipe::{PipeReader, PipeWriter};
 use std::future::Future;
-use std::io::Read;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::time::Duration;
 use tokio::sync::oneshot;
-use tokio::time::Interval;
 use tokio::{fs, io};
 
 pub const BASE_ENV: [(&str, &str); 3] = [
@@ -22,46 +20,124 @@ pub const BASE_ENV: [(&str, &str); 3] = [
     ("LD_LIBRARY_PATH", "/lib:/lib64:/libexec"),
 ];
 
+const VENDORED_ROOTFS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/lxc_rootfs");
+
 pub struct Runner {
     container: Container,
     temp_home: PathBuf,
+    host_fallback: bool,
 }
 
 impl Runner {
-    async fn create_home() -> PathBuf {
+    async fn create_home() -> io::Result<PathBuf> {
         let mut temp_home = PathBuf::from("/tmp");
         temp_home.push(uuid::Uuid::new_v4().simple().to_string());
 
-        fs::create_dir(&temp_home)
-            .await
-            .expect("Cannot create home");
+        fs::create_dir(&temp_home).await?;
 
-        temp_home
+        Ok(temp_home)
     }
 
-    fn create_container(temp_home: &str) -> Container {
-        Container::new()
-            .hostname("rsground")
-            .rootfs(concat!(env!("CARGO_MANIFEST_DIR"), "/lxc_rootfs"))
+    fn create_container(temp_home: &str, host_fallback: bool) -> Container {
+        let mut container = Container::new();
+        container.hostname("rsground");
+
+        if host_fallback {
+            // Keep hakoniwa's namespaces for local development when the
+            // downloaded image is not present. The vendored image remains the
+            // normal path whenever it exists.
+            container.rootfs("/");
+
+            if let Some(host_home) = std::env::var_os("HOME").map(PathBuf::from) {
+                let rustup_home = host_home.join(".rustup");
+                if rustup_home.is_dir() {
+                    container.bindmount_ro(rustup_home.to_string_lossy().as_ref(), "/home/.rustup");
+                }
+
+                let cargo_home = host_home.join(".cargo");
+                if cargo_home.is_dir() {
+                    container.bindmount_rw(cargo_home.to_string_lossy().as_ref(), "/home/.cargo");
+                }
+            }
+        } else {
+            container.rootfs(VENDORED_ROOTFS);
+        }
+
+        container
             .tmpfsmount("/tmp")
             .devfsmount("/dev")
             .procfsmount("/proc")
             .uidmap(1001)
             .gidmap(100)
             .bindmount_rw(temp_home, "/home")
-            // FIXME: This needs to set resource limit
-            // .setrlimit(hakoniwa::Rlimit::*, soft_limit, hard_limit)
+            // Keep compilation and execution bounded even when a submitted
+            // program forks, allocates, or writes indefinitely.
+            .setrlimit(
+                hakoniwa::Rlimit::As,
+                4 * 1024 * 1024 * 1024,
+                4 * 1024 * 1024 * 1024,
+            )
+            .setrlimit(hakoniwa::Rlimit::Cpu, 30, 30)
+            .setrlimit(hakoniwa::Rlimit::Core, 0, 0)
+            .setrlimit(hakoniwa::Rlimit::Fsize, 64 * 1024 * 1024, 64 * 1024 * 1024)
+            .setrlimit(hakoniwa::Rlimit::Nofile, 1024, 1024)
+            .setrlimit(hakoniwa::Rlimit::Nproc, 1024, 1024)
             .clone()
     }
 
-    pub async fn new() -> Result<Self, ()> {
-        let temp_home = Self::create_home().await;
-        let container = Self::create_container(temp_home.to_str().unwrap());
+    pub async fn new() -> Result<Self, RunnerError> {
+        let temp_home = Self::create_home().await?;
+        let host_fallback = !Path::new(VENDORED_ROOTFS).is_dir();
+
+        if host_fallback {
+            log::warn!(
+                "Runner rootfs is missing at {VENDORED_ROOTFS}; using the host rootfs fallback for local development. Install the vendored rootfs before deployment."
+            );
+        }
+
+        let temp_home_str = temp_home
+            .to_str()
+            .ok_or_else(|| RunnerError::MissingRootfs(temp_home.display().to_string()))?;
+        let container = Self::create_container(temp_home_str, host_fallback);
 
         Ok(Self {
             container,
             temp_home,
+            host_fallback,
         })
+    }
+
+    fn configure_command(&self, command: &mut Command) {
+        command.envs(BASE_ENV);
+
+        if self.host_fallback {
+            // The development host uses rustup proxies. Their toolchains and
+            // registry are mounted at these stable container paths above.
+            command
+                .env("RUSTUP_HOME", "/home/.rustup")
+                .env("CARGO_HOME", "/home/.cargo");
+        }
+    }
+
+    fn relative_home_path(&self, path: impl AsRef<Path>) -> io::Result<PathBuf> {
+        let path = path.as_ref();
+
+        if path.as_os_str().is_empty()
+            || path.is_absolute()
+            || path.components().any(|component| {
+                matches!(
+                    component,
+                    Component::ParentDir | Component::RootDir | Component::Prefix(_)
+                )
+            })
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "runner paths must be relative and must not contain '..'",
+            ));
+        }
+
+        Ok(self.temp_home.join(path))
     }
 
     pub async fn create_file(
@@ -69,13 +145,22 @@ impl Runner {
         container_path: impl AsRef<str>,
         content: impl AsRef<str>,
     ) -> io::Result<()> {
-        let mut home = self.temp_home.clone();
-        // FIXME: This is security breach, needs to check if path is inside the container
-        home.push(container_path.as_ref());
+        let home = self.relative_home_path(container_path.as_ref())?;
 
-        fs::create_dir_all(home.parent().unwrap()).await.unwrap();
+        if let Some(parent) = home.parent() {
+            fs::create_dir_all(parent).await?;
+        }
 
         fs::write(home, content.as_ref()).await
+    }
+
+    pub async fn remove_file(&self, container_path: impl AsRef<str>) -> io::Result<()> {
+        let path = self.relative_home_path(container_path.as_ref())?;
+        match fs::remove_file(path).await {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(error),
+        }
     }
 
     pub async fn copy_file_from_runner(
@@ -83,16 +168,15 @@ impl Runner {
         other: &Runner,
         host_path: impl AsRef<Path>,
         other_path: impl AsRef<Path>,
-    ) {
-        let mut host_file_path = self.temp_home.clone();
-        host_file_path.push(host_path);
+    ) -> io::Result<()> {
+        let host_file_path = self.relative_home_path(host_path)?;
+        let other_file_path = other.relative_home_path(other_path)?;
 
-        let mut other_file_path = other.temp_home.clone();
-        other_file_path.push(other_path);
+        if let Some(parent) = host_file_path.parent() {
+            fs::create_dir_all(parent).await?;
+        }
 
-        fs::copy(other_file_path, host_file_path)
-            .await
-            .expect("Skill issuer de manual");
+        fs::copy(other_file_path, host_file_path).await.map(|_| ())
     }
 
     pub async fn collect_output(cmd: &mut Command) -> Result<Output, hakoniwa::Error> {
@@ -202,10 +286,10 @@ impl Runner {
         cmd: impl AsRef<str>,
         args: impl IntoIterator<Item = impl AsRef<str>>,
     ) -> Result<hakoniwa::Child, hakoniwa::Error> {
-        self.container
-            .command(cmd.as_ref())
-            .args(args)
-            .envs(BASE_ENV)
+        let mut command = self.container.command(cmd.as_ref());
+        command.args(args);
+        self.configure_command(&mut command);
+        command
             .stdin(hakoniwa::Stdio::Inherit)
             .stdout(hakoniwa::Stdio::Inherit)
             .stderr(hakoniwa::Stdio::Inherit)
@@ -214,10 +298,13 @@ impl Runner {
     }
 
     pub fn start_rls(&mut self) -> hakoniwa::Result<(Child, PipeWriter, PipeReader, PipeReader)> {
-        let mut child = self
-            .container
-            .command("/bin/rust-analyzer")
-            .envs(BASE_ENV)
+        let mut child = self.container.command(if self.host_fallback {
+            "/usr/lib/rustup/bin/rust-analyzer"
+        } else {
+            "/bin/rust-analyzer"
+        });
+        self.configure_command(&mut child);
+        let mut child = child
             .stdin(hakoniwa::Stdio::MakePipe)
             .stdout(hakoniwa::Stdio::MakePipe)
             .stderr(hakoniwa::Stdio::MakePipe)
@@ -238,6 +325,7 @@ impl Runner {
     ) -> Command {
         let mut cmd = self.container.command(cmd.as_ref());
         cmd.args(args);
+        self.configure_command(&mut cmd);
         cmd
     }
 
@@ -255,6 +343,7 @@ impl Runner {
 
         let mut cmd = self.container.command("/bin/bash");
         cmd.arg("-c").arg(&arg);
+        self.configure_command(&mut cmd);
         cmd
     }
 
@@ -262,18 +351,49 @@ impl Runner {
         let mut cmd = self.container.command("/bin/rustc");
         // -C linker=/bin/ld -C link-args=-L/lib -C link-args=-L/lib/gcc/x86_64-unknown-linux-gnu/14.2.1
         cmd.args(args);
+        self.configure_command(&mut cmd);
         cmd
     }
 
     pub async fn patch_binary(&self, path: impl AsRef<str>) -> Result<Output, hakoniwa::Error> {
-        Self::collect_output(
-            self.container
-                .command("/bin/patchelf")
-                .arg("--set-interpreter")
-                .arg("/lib/ld-linux-x86-64.so.2")
-                .arg(path.as_ref()),
-        )
-        .await
+        let path = path.as_ref();
+        if !path.starts_with("/home/") || path.contains("..") {
+            return Err(hakoniwa::Error::Unexpected(
+                "binary path must be inside /home".to_owned(),
+            ));
+        }
+
+        let patcher = if self.host_fallback {
+            ["/bin/patchelf", "/usr/bin/patchelf"]
+                .into_iter()
+                .find(|path| Path::new(path).is_file())
+        } else {
+            Some("/bin/patchelf")
+        };
+
+        let Some(patcher) = patcher else {
+            // Host toolchains already emit binaries with the host dynamic
+            // loader, so no patch is needed in development mode.
+            return Ok(Output {
+                status: ExitStatus {
+                    code: 0,
+                    reason: "No binary patching required".to_owned(),
+                    exit_code: Some(0),
+                    rusage: None,
+                },
+                stdout: Vec::new(),
+                stderr: Vec::new(),
+            });
+        };
+
+        let mut command = self.container.command(patcher);
+        command
+            .arg("--set-interpreter")
+            .arg("/lib/ld-linux-x86-64.so.2")
+            .arg(path);
+        self.configure_command(&mut command);
+
+        Self::collect_output(&mut command).await
     }
 }
 

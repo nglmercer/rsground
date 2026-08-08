@@ -1,4 +1,4 @@
-use std::{io::Read, ops, os::fd::AsFd, ptr::read};
+use std::{io::Read, ops, os::fd::AsFd};
 
 use async_io::Async;
 use hakoniwa::{Child, ExitStatus};
@@ -56,20 +56,28 @@ impl AsFd for AsyncOsReader {
 
 impl AsyncOsReader {
     pub async fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        _ = self.0.readable().await?;
-        unsafe { self.0.get_mut() }.read(buf)
+        loop {
+            _ = self.0.readable().await?;
+
+            match unsafe { self.0.get_mut() }.read(buf) {
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => continue,
+                result => return result,
+            }
+        }
     }
 
     pub async fn read_to_end(&mut self, buf: &mut Vec<u8>) -> std::io::Result<usize> {
         let mut total_bytes = 0;
+        let mut chunk = [0; 8192];
 
         loop {
-            let read_bytes = self.read(buf.as_mut_slice()).await?;
+            let read_bytes = self.read(&mut chunk).await?;
 
             if read_bytes == 0 {
                 break;
             }
 
+            buf.extend_from_slice(&chunk[..read_bytes]);
             total_bytes += read_bytes;
         }
 

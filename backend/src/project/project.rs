@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::path::{Component, Path};
 use std::sync::Arc;
 
 use actix::Addr;
@@ -95,10 +96,11 @@ impl Project {
     }
 
     pub fn permit_access(&mut self, user_id: ArcStr, access: AccessLevel) {
+        self.requests.remove(&user_id);
         self.allowed_users.insert(user_id, access);
     }
 
-    pub fn get_file(&mut self, file_name: &str) -> Option<Arc<Document>> {
+    pub fn get_file(&self, file_name: &str) -> Option<Arc<Document>> {
         self.documents.get(file_name).cloned()
     }
 
@@ -120,6 +122,18 @@ impl Project {
 
     pub fn rm_file(&mut self, path: impl AsRef<str>) -> Option<Arc<Document>> {
         self.documents.remove(path.as_ref())
+    }
+
+    pub fn is_valid_file_path(path: &str) -> bool {
+        let path = Path::new(path);
+
+        !path.as_os_str().is_empty()
+            && path.as_os_str().as_encoded_bytes().len() <= 256 * 1024
+            && !path.is_absolute()
+            && !path.as_os_str().as_encoded_bytes().contains(&0)
+            && path
+                .components()
+                .all(|component| matches!(component, Component::Normal(_)))
     }
 
     /// Get all file paths
@@ -146,13 +160,26 @@ impl Project {
             .collect::<HashMap<ArcStr, Arc<Document>>>()
             .await;
 
-        Project {
+        let forked = Project {
             name,
             owner,
             documents,
             is_public: self.is_public,
             ..Project::default().await
+        };
+
+        // The document map is copied in memory, but each project owns a
+        // separate runner home. Populate that home as well or a fork would
+        // open correctly and then fail on its first execution.
+        let runner = forked.get_runner();
+        for (path, document) in &forked.documents {
+            _ = runner
+                .create_file(&path.to_string(), &document.text().await)
+                .await
+                .inspect_err(|err| log::error!("Cannot seed fork file {path:?}: {err}"));
         }
+
+        forked
     }
 
     pub fn join_project(

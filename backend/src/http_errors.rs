@@ -15,6 +15,10 @@ pub enum HttpErrors {
     #[http_status(Forbidden)]
     GithubNameChange,
 
+    #[error("Guest name must contain between 1 and 64 characters")]
+    #[http_status(BadRequest)]
+    InvalidGuestName,
+
     #[error("Error fetching github user: {0}")]
     GithubUserFetch(reqwest::Error),
 
@@ -25,6 +29,10 @@ pub enum HttpErrors {
     #[error("No token provided")]
     #[http_status(Unauthorized)]
     NoTokenProvided,
+
+    #[error("GitHub OAuth is not configured")]
+    #[http_status(ServiceUnavailable)]
+    OAuthNotConfigured,
 
     // -- Websockets related -- //
     #[error("Project doesn't exist")]

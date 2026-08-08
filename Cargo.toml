@@ -1,5 +1,7 @@
 [workspace]
 members = ["backend", "backend/runner", "frontend-wasm"]
+default-members = ["backend"]
+resolver = "2"
 
 [workspace.dependencies]
 bytecount = "0.6"

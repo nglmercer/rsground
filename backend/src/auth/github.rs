@@ -2,28 +2,54 @@ use oauth2::basic::BasicClient;
 use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
 use serde::Deserialize;
 
-use crate::utils::expect_var;
-
 #[derive(Deserialize, Debug)]
 pub struct GitHubUser {
     pub login: String,
     pub avatar_url: String,
 }
 
-pub fn get_oauth_client() -> BasicClient {
-    let client_id = ClientId::new(expect_var!("GITHUB_CLIENT_ID"));
-    let client_secret = ClientSecret::new(expect_var!("GITHUB_CLIENT_SECRET"));
+pub fn get_oauth_client() -> Option<BasicClient> {
+    let client_id = std::env::var("GITHUB_CLIENT_ID")
+        .ok()
+        .filter(|value| !value.trim().is_empty());
+    let client_secret = std::env::var("GITHUB_CLIENT_SECRET")
+        .ok()
+        .filter(|value| !value.trim().is_empty());
+    let callback = std::env::var("GITHUB_CALLBACK")
+        .ok()
+        .filter(|value| !value.trim().is_empty());
+
+    let (Some(client_id), Some(client_secret), Some(callback)) =
+        (client_id, client_secret, callback)
+    else {
+        log::warn!(
+            "GitHub OAuth is not configured; guest login remains available. Set GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, and GITHUB_CALLBACK to enable GitHub login."
+        );
+        return None;
+    };
 
     let auth_url = AuthUrl::new("https://github.com/login/oauth/authorize".to_string())
-        .expect("URL de autorización inválida");
+        .expect("GitHub authorization URL is a compile-time constant");
     let token_url = TokenUrl::new("https://github.com/login/oauth/access_token".to_string())
-        .expect("URL de token inválida");
+        .expect("GitHub token URL is a compile-time constant");
 
-    let redirect_uri =
-        RedirectUrl::new(expect_var!("GITHUB_CALLBACK")).expect("URL de redirección inválida");
+    let redirect_uri = match RedirectUrl::new(callback) {
+        Ok(url) => url,
+        Err(error) => {
+            log::error!("Invalid GITHUB_CALLBACK: {error}");
+            return None;
+        }
+    };
 
-    BasicClient::new(client_id, Some(client_secret), auth_url, Some(token_url))
-        .set_redirect_uri(redirect_uri)
+    Some(
+        BasicClient::new(
+            ClientId::new(client_id),
+            Some(ClientSecret::new(client_secret)),
+            auth_url,
+            Some(token_url),
+        )
+        .set_redirect_uri(redirect_uri),
+    )
 }
 
 pub async fn fetch_user(access_token: &str) -> Result<GitHubUser, reqwest::Error> {

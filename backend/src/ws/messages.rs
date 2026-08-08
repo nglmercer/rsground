@@ -109,6 +109,15 @@ pub enum ServerMessageError {
     #[error("File {0:?} not found")]
     FileNotFound(ArcStr),
 
+    #[error("File {0:?} already exists")]
+    FileAlreadyExists(ArcStr),
+
+    #[error("Invalid file path {0:?}")]
+    InvalidFilePath(ArcStr),
+
+    #[error("Invalid document operation: {0}")]
+    InvalidOperation(String),
+
     #[error("You don't have read permission")]
     NotAccessible,
 

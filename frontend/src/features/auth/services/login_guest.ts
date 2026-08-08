@@ -16,6 +16,10 @@ export async function loginGuest(guest_name: string): Promise<AuthInfo> {
     },
   );
 
+  if (!res.ok) {
+    throw new Error(`Guest login failed (${res.status})`);
+  }
+
   const authInfo = await res.json();
 
   setAuthInfo(authInfo);
