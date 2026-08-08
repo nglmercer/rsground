@@ -48,10 +48,10 @@ async fn test_flow_two_users() {
     let mut guest_ws = ws!(connect guest, &project_id);
 
     // Guest handshake
-    let guest_session = {
+    {
         let (_, users, session_id) = ws!(recv guest_ws, "welcome", [ get "users", as object ] [ get "session_id", as string ]);
         assert!(users.contains_key(&guest_id), "Self should be included");
-        session_id
+        let _ = session_id;
     };
 
     // Get notified about guest connection
@@ -79,21 +79,21 @@ async fn test_flow_two_users() {
     _ = ws!(send guest_ws, "sync" {
         "revision": 0,
         "file": "test",
-        "actions": [{ "kind": "insertion", "from": 0, "text": "hello world", "owner": guest_session }],
+        "actions": ["hello world"],
+    });
+
+    _ = ws!(recv owner_ws, "sync", [ get "actions", as array ] [ get "file", as string, eq "test" ] [ get "revision", as unsigned, eq 0 ]);
+    _ = ws!(recv guest_ws, "sync", [ get "actions", as array ] [ get "file", as string, eq "test" ] [ get "revision", as unsigned, eq 0 ]);
+
+    // --- 6. Guest deletes text in "test" file ---
+    _ = ws!(send guest_ws, "sync" {
+        "revision": 1,
+        "file": "test",
+        "actions": [-5, 6],
     });
 
     _ = ws!(recv owner_ws, "sync", [ get "actions", as array ] [ get "file", as string, eq "test" ] [ get "revision", as unsigned, eq 1 ]);
     _ = ws!(recv guest_ws, "sync", [ get "actions", as array ] [ get "file", as string, eq "test" ] [ get "revision", as unsigned, eq 1 ]);
-
-    // --- 6. Guest deletes text in "test" file ---
-    _ = ws!(send guest_ws, "sync" {
-        "revision": 0,
-        "file": "test",
-        "actions": [{ "kind": "deletion", "from": 0, "to": 5, "owner": guest_session }],
-    });
-
-    _ = ws!(recv owner_ws, "sync", [ get "actions", as array ] [ get "file", as string, eq "test" ] [ get "revision", as unsigned, eq 2 ]);
-    _ = ws!(recv guest_ws, "sync", [ get "actions", as array ] [ get "file", as string, eq "test" ] [ get "revision", as unsigned, eq 2 ]);
 
     // --- 7. Guest deletes "test" file ---
     _ = ws!(send guest_ws, "file_delete" {

@@ -16,11 +16,25 @@ pub fn auth_header(token: impl fmt::Display) -> impl TryIntoHeaderPair {
     ("Authorization", format!("Bearer {token}"))
 }
 
+pub fn api_url(path: &str) -> String {
+    let base = std::env::var("RSGROUND_TEST_API_URL")
+        .unwrap_or_else(|_| "http://localhost:8080".to_owned());
+    format!("{base}{path}")
+}
+
+pub fn ws_url(path: &str) -> String {
+    let base = std::env::var("RSGROUND_TEST_API_URL")
+        .unwrap_or_else(|_| "http://localhost:8080".to_owned())
+        .replacen("http://", "ws://", 1)
+        .replacen("https://", "wss://", 1);
+    format!("{base}{path}")
+}
+
 #[macro_export]
 macro_rules! request {
     ($path:literal $($tt:tt)*) => { request!([get] $path $($tt)*) };
     ([$method:ident] $path:literal $($tt:tt)*) => {
-        request!(@compose [::awc::Client::new().request(::awc::http::Method::$method, concat!(_const!(API_URL), $path))] $($tt)*)
+        request!(@compose [::awc::Client::new().request(::awc::http::Method::$method, $crate::common::api_url($path))] $($tt)*)
     };
     (@compose [$base:expr]) => { $base };
     (@send [$base:expr] dbg $(, $($tt:tt)+)?) => {
@@ -76,7 +90,7 @@ macro_rules! request {
 macro_rules! ws {
     (connect $owner:expr, $project_id:expr $(, $password:expr)?) => {
         ::awc::Client::new()
-            .ws(format!(concat!(_const!(WS_URL), "/{}"), $project_id))
+            .ws($crate::common::ws_url(&format!("/ws/{}", $project_id)))
             .set_header("Sec-WebSocket-Protocol", ws!(@connect-protocol $owner $($password)?))
             .connect()
             .await

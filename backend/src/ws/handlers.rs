@@ -102,6 +102,20 @@ impl RgWebsocket {
     ) -> Result<ServerMessage, ServerMessageError> {
         match msg {
             InternalMessage::FileEdit { path } => {
+                // A client can submit an edit immediately after receiving the
+                // project-files broadcast. The file-create notification uses
+                // a separate channel, so recover the document here instead
+                // of dropping the first edit if that notification has not
+                // been scheduled yet.
+                if !self.sync_docs.contains_key(&path) {
+                    let project = self.app_state.get_project(self.project_id).await?;
+                    let project = project.read().await;
+                    let Some(doc) = project.get_file(&path) else {
+                        return Err(ServerMessageError::FileNotFound(path));
+                    };
+                    self.sync_docs.insert(path.clone(), (doc, 0));
+                }
+
                 let Some((doc, revision)) = self.sync_docs.get_mut(&path) else {
                     return Err(ServerMessageError::FileNotFound(path));
                 };
@@ -220,7 +234,7 @@ impl RgWebsocket {
                 let mut project = project.write().await;
 
                 if project.owner != self.user_info.id {
-                    return Err(ServerMessageError::None);
+                    return Err(ServerMessageError::NotOwner);
                 }
 
                 if let Some(name) = name {
@@ -260,8 +274,16 @@ impl RgWebsocket {
             ClientMessage::FileCreate { file } => {
                 self.access.need_editor()?;
 
+                if !crate::project::Project::is_valid_file_path(&file) {
+                    return Err(ServerMessageError::InvalidFilePath(file));
+                }
+
                 let project = self.app_state.get_project(self.project_id).await?;
                 let mut project = project.write().await;
+
+                if project.documents.contains_key(&file) {
+                    return Err(ServerMessageError::FileAlreadyExists(file));
+                }
 
                 let new_doc = project.add_file(file.clone(), Document::new()).await;
 
@@ -285,7 +307,14 @@ impl RgWebsocket {
                 let mut project = project.write().await;
 
                 if project.rm_file(&file).is_some() {
-                    // TODO: remove file in runner
+                    _ = project
+                        .get_runner()
+                        .remove_file(&file)
+                        .await
+                        .inspect_err(|err| {
+                            log::error!("Cannot remove runner file {file:?}: {err}")
+                        });
+
                     let msg = ServerMessage::ProjectFiles {
                         files: project.get_files().await,
                     };
@@ -338,7 +367,7 @@ impl RgWebsocket {
                 self.access.need_editor()?;
 
                 let project = self.app_state.get_project(self.project_id).await?;
-                let mut project = project.write().await;
+                let project = project.read().await;
                 let runner = project.get_runner();
 
                 let doc = project.get_file(&file).ok_or_else(|| {
@@ -350,17 +379,13 @@ impl RgWebsocket {
                     .compose(self.session_id.clone(), revision, actions)
                     .await
                 {
-                    _ = project
-                        .broadcast
-                        .send(ServerMessage::Error { message: err })
+                    return Err(ServerMessageError::InvalidOperation(err));
                 }
 
                 _ = runner
                     .create_file(&file, &doc.text().await)
                     .await
                     .inspect_err(|err| log::error!("{err}"));
-
-                dbg!(&doc.text().await);
 
                 _ = project
                     .internal
@@ -373,7 +398,7 @@ impl RgWebsocket {
                 self.access.need_editor()?;
 
                 let project = self.app_state.get_project(self.project_id).await?;
-                let mut project = project.write().await;
+                let project = project.read().await;
 
                 let doc = project.get_file(&file).ok_or_else(|| {
                     log::error!("File {file:?} not found in {:?}", self.project_id);
@@ -400,7 +425,7 @@ impl RgWebsocket {
                 self.access.need_read()?;
 
                 let project = self.app_state.get_project(self.project_id).await?;
-                let project = project.write().await;
+                let project = project.read().await;
 
                 Ok(ServerMessage::ProjectFiles {
                     files: project.get_files().await,
