@@ -4,11 +4,23 @@ use actix_web::HttpRequest;
 use chrono::{Duration, TimeDelta, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::expect_var;
 use crate::http_errors::HttpErrors;
 use crate::utils::ArcStr;
 
-pub static JWT_SECRET: LazyLock<String> = LazyLock::new(|| expect_var!("JWT_SECRET"));
+/// The JWT secret is intentionally configurable, but a local default keeps the
+/// guest-only development server usable after a fresh checkout. Deployments
+/// should always provide `JWT_SECRET` through their environment.
+pub static JWT_SECRET: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("JWT_SECRET")
+        .ok()
+        .filter(|secret| !secret.trim().is_empty())
+        .unwrap_or_else(|| {
+            log::warn!(
+                "JWT_SECRET is not set; using a local development secret. Set it before deployment."
+            );
+            "rsground-local-development-secret".to_owned()
+        })
+});
 const JWT_EXP: TimeDelta = Duration::hours(12);
 
 #[derive(Debug, Serialize, Deserialize)]

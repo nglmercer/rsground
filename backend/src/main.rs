@@ -22,7 +22,7 @@ use tokio::sync::Mutex;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    env_logger::init();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     dotenv::dotenv().ok();
 
     // Force initialization to verify
@@ -34,6 +34,10 @@ async fn main() -> std::io::Result<()> {
     });
 
     log::info!("Iniciando servidor Actix-Web");
+
+    let bind_address =
+        std::env::var("RSGROUND_BIND").unwrap_or_else(|_| "127.0.0.1:8080".to_owned());
+    log::info!("Listening on http://{bind_address}");
 
     let app_state = web::Data::new(AppState {
         manager: Mutex::new(ProjectManager::new()).into(),
@@ -61,7 +65,7 @@ async fn main() -> std::io::Result<()> {
             .service(project::routes::get_project)
             .service(ws::routes::websocket)
     })
-    .bind("127.0.0.1:8080")?
+    .bind(bind_address)?
     .run()
     .await
 }
