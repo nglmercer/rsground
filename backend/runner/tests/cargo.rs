@@ -41,7 +41,8 @@ async fn cargo_run() {
     let executer_runner = Runner::new().await.unwrap();
     executer_runner
         .copy_file_from_runner(&runner, "main", "target/release/rsground-main")
-        .await;
+        .await
+        .expect("Cannot copy executable");
 
     let output = Runner::collect_output(&mut executer_runner.cmd("/home/main", [] as [&str; 0]))
         .await

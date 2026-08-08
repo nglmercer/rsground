@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use actix_error_proc::{proof_route, HttpResult};
 use actix_web::{web, HttpRequest, HttpResponse};
 use futures::StreamExt as _;
+use serde::Deserialize;
 use serde_json::json;
 use uuid::Uuid;
 
@@ -12,19 +13,21 @@ use crate::project::AccessLevel;
 use crate::state::AppState;
 use crate::utils::{ArcStr, ToStream};
 
+#[derive(Deserialize, Default)]
+struct ProjectQuery {
+    p: Option<String>,
+}
+
 #[proof_route(get("/project/{project_id}"))]
 pub async fn get_project(
     app_state: web::Data<AppState>,
     project_id: web::Path<Uuid>,
+    query: web::Query<ProjectQuery>,
     req: HttpRequest,
 ) -> HttpResult<HttpErrors> {
     let app_state = app_state.into_inner();
     let project_id = project_id.into_inner();
-    let password = req
-        .query_string()
-        .strip_prefix("p=")
-        .take_if(|s| !s.is_empty())
-        .map(|s| s.to_owned());
+    let password = query.into_inner().p.filter(|password| !password.is_empty());
 
     let user_info = jwt::get_user_info(&req)?;
 
@@ -57,6 +60,8 @@ pub async fn get_project(
         .collect::<HashMap<ArcStr, (ArcStr, AccessLevel)>>()
         .await;
 
+    let is_owner = project.owner == user_info.id;
+
     Ok(HttpResponse::Ok().json(json!({
         "access": access,
         "id": project.id,
@@ -64,7 +69,9 @@ pub async fn get_project(
         "owner": project.owner,
         "users": users,
         "is_public": project.is_public,
-        "password": project.password
+        // The password is needed by the owner UI, but should never be sent to
+        // other collaborators.
+        "password": is_owner.then(|| project.password.clone()).flatten()
     })))
 }
 
@@ -107,7 +114,11 @@ pub async fn fork_project(
         };
         let project = project.read().await;
 
-        if !project.allowed_users.contains_key(&user_info.id) {
+        if !project
+            .allowed_users
+            .get(&user_info.id)
+            .is_some_and(AccessLevel::can_read)
+        {
             return Err(HttpErrors::NotAccessible);
         }
 

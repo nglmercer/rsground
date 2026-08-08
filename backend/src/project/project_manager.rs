@@ -12,10 +12,7 @@ use crate::ws::messages::ServerMessageError;
 use super::Project;
 
 const MAIN_RS: &str = r#"fn main() {
-    for i in 0..30 {
-        println!("[{i}] \x1b[31mHello \x1b[1mWorld\x1b[0m!");
-        std::thread::sleep(std::time::Duration::from_millis(100))
-    }
+    println!("Hello World");
 }"#;
 
 pub struct ProjectManager {
