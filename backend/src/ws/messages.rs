@@ -50,7 +50,6 @@ pub enum ServerMessage {
     ProjectConfig {
         name: ArcStr,
         is_public: bool,
-        password: Option<String>,
     },
     ProjectFiles {
         /// List of all file paths

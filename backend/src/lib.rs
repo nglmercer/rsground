@@ -8,8 +8,10 @@ mod utils;
 mod ws;
 
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::sync::LazyLock;
 
+use actix_cors::Cors;
 use auth::github;
 use auth::routes::OAuthData;
 use state::AppState;
@@ -44,6 +46,61 @@ pub fn new_app_data() -> AppData {
 
 pub fn initialize() {
     LazyLock::force(&auth::jwt::JWT_SECRET);
+}
+
+pub fn validate_configuration(bind_address: &str) -> Result<(), String> {
+    let production = std::env::var("RSGROUND_ENV").is_ok_and(|value| {
+        value.eq_ignore_ascii_case("production") || value.eq_ignore_ascii_case("prod")
+    });
+    let public_bind = bind_address
+        .parse::<SocketAddr>()
+        .map(|address| !address.ip().is_loopback())
+        .unwrap_or(true);
+
+    if production || public_bind {
+        auth::jwt::validate_deployment_secret()?;
+    }
+
+    if production
+        && !std::env::var("RSGROUND_CORS_ORIGINS")
+            .ok()
+            .is_some_and(|origins| origins.split(',').any(|origin| !origin.trim().is_empty()))
+    {
+        return Err("RSGROUND_CORS_ORIGINS must be set for deployment".to_owned());
+    }
+
+    Ok(())
+}
+
+pub fn cors() -> Cors {
+    let origins = std::env::var("RSGROUND_CORS_ORIGINS")
+        .ok()
+        .map(|value| {
+            value
+                .split(',')
+                .map(str::trim)
+                .filter(|origin| !origin.is_empty())
+                .map(str::to_owned)
+                .collect::<Vec<_>>()
+        })
+        .filter(|origins| !origins.is_empty())
+        .unwrap_or_else(|| {
+            vec![
+                "http://localhost:3000".to_owned(),
+                "http://127.0.0.1:3000".to_owned(),
+            ]
+        });
+
+    let mut cors = Cors::default()
+        .allowed_methods(["GET", "POST", "OPTIONS"])
+        .allowed_headers(["Authorization", "Content-Type"])
+        .supports_credentials();
+
+    for origin in origins {
+        cors = cors.allowed_origin(&origin);
+    }
+
+    cors
 }
 
 fn configure_routes(config: &mut actix_web::web::ServiceConfig) {

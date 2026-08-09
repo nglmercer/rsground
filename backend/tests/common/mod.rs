@@ -1,7 +1,6 @@
 use core::fmt;
 use std::{future::Future, net::TcpListener, time::Duration};
 
-use actix_cors::Cors;
 use actix_web::{App, HttpServer};
 use awc::http::header::TryIntoHeaderPair;
 
@@ -26,12 +25,7 @@ impl TestServer {
             let app_data = app_data.clone();
 
             App::new()
-                .wrap(
-                    Cors::default()
-                        .allow_any_origin()
-                        .allow_any_method()
-                        .allow_any_header(),
-                )
+                .wrap(backend::cors())
                 .configure(move |config| app_data.configure(config))
         })
         .workers(1)

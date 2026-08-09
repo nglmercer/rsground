@@ -26,7 +26,6 @@ export type ServerMessage<S extends ServerMessageKind = ServerMessageKind> = {
     action: ServerMessageKind.ProjectConfig;
     name: string;
     is_public: boolean;
-    password?: string | null;
   };
   [ServerMessageKind.ProjectFiles]: {
     action: ServerMessageKind.ProjectFiles;

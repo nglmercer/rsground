@@ -3,6 +3,7 @@ use std::sync::LazyLock;
 use actix_web::HttpRequest;
 use chrono::{Duration, TimeDelta, Utc};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::http_errors::HttpErrors;
 use crate::utils::ArcStr;
@@ -16,12 +17,30 @@ pub static JWT_SECRET: LazyLock<String> = LazyLock::new(|| {
         .filter(|secret| !secret.trim().is_empty())
         .unwrap_or_else(|| {
             log::warn!(
-                "JWT_SECRET is not set; using a local development secret. Set it before deployment."
+                "JWT_SECRET is not set; using an ephemeral local-development secret. Set it before deployment."
             );
-            "rsground-local-development-secret".to_owned()
+            format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple())
         })
 });
 const JWT_EXP: TimeDelta = Duration::hours(12);
+const MIN_DEPLOYMENT_SECRET_BYTES: usize = 32;
+
+pub(crate) fn validate_deployment_secret() -> Result<(), String> {
+    let Some(secret) = std::env::var("JWT_SECRET")
+        .ok()
+        .filter(|secret| !secret.trim().is_empty())
+    else {
+        return Err("JWT_SECRET must be set for deployment".to_owned());
+    };
+
+    if secret.len() < MIN_DEPLOYMENT_SECRET_BYTES {
+        return Err(format!(
+            "JWT_SECRET must contain at least {MIN_DEPLOYMENT_SECRET_BYTES} bytes for deployment"
+        ));
+    }
+
+    Ok(())
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RgUserData {

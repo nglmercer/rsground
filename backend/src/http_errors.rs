@@ -34,6 +34,10 @@ pub enum HttpErrors {
     #[http_status(ServiceUnavailable)]
     OAuthNotConfigured,
 
+    #[error("Invalid OAuth state")]
+    #[http_status(Unauthorized)]
+    InvalidOAuthState,
+
     // -- Websockets related -- //
     #[error("Project doesn't exist")]
     #[http_status(NotFound)]

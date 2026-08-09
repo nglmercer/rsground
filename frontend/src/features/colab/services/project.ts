@@ -56,7 +56,6 @@ onWsMessage(ServerMessageKind.ProjectConfig, (msg) => {
   setProjectInfo({
     name: msg.name,
     is_public: msg.is_public,
-    password: msg.password,
   });
 });
 

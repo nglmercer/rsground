@@ -40,7 +40,11 @@ impl Runner {
 
     fn create_container(temp_home: &str, host_fallback: bool) -> Container {
         let mut container = Container::new();
-        container.hostname("rsground");
+        container
+            .hostname("rsground")
+            // Submitted programs must not be able to reach the host network
+            // or internal services. The vendored toolchain is self-contained.
+            .unshare(hakoniwa::Namespace::Network);
 
         if host_fallback {
             container.rootfs("/");
@@ -83,8 +87,13 @@ impl Runner {
     }
 
     pub async fn new() -> Result<Self, RunnerError> {
-        let temp_home = Self::create_home().await?;
         let host_fallback = !Path::new(VENDORED_ROOTFS).is_dir();
+
+        if host_fallback && is_production() {
+            return Err(RunnerError::MissingRootfs(VENDORED_ROOTFS.to_owned()));
+        }
+
+        let temp_home = Self::create_home().await?;
 
         if host_fallback {
             log::warn!(
@@ -237,6 +246,7 @@ impl Runner {
                         }
                         _ = &mut abort => {
                             _ = signal::kill(child_pid, Signal::SIGKILL);
+                            _ = tokio::task::spawn_blocking(move || child.wait()).await;
                             return Ok(ExitStatus {
                                 code: 137,
                                 reason: "Aborted".to_owned(),
@@ -392,6 +402,12 @@ impl Runner {
 
         Self::collect_output(&mut command).await
     }
+}
+
+fn is_production() -> bool {
+    std::env::var("RSGROUND_ENV").is_ok_and(|value| {
+        value.eq_ignore_ascii_case("production") || value.eq_ignore_ascii_case("prod")
+    })
 }
 
 impl Drop for Runner {

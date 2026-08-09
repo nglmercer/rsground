@@ -6,19 +6,20 @@ export function interceptAuthCallback(): Promise<void> {
     if (window.location.pathname === "/auth/callback") {
         const url = new URL(window.location.href);
         const code = url.searchParams.get("code");
+        const state = url.searchParams.get("state");
 
-        if (code) {
-      return handleAuthCallback(code);
+        if (code && state) {
+      return handleAuthCallback(code, state);
     }
   }
 
   return Promise.resolve();
 }
 
-async function handleAuthCallback(code: string) {
+async function handleAuthCallback(code: string, state: string) {
   setIsLoadingAuthInfo(true);
   try {
-    const authInfo = await authCallback(code);
+    const authInfo = await authCallback(code, state);
 
     batch(() => {
       setAuthInfo(authInfo);

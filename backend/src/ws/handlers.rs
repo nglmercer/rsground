@@ -191,7 +191,7 @@ impl RgWebsocket {
                     return;
                 }
 
-                log::trace!("New message: {text}");
+                log::trace!("Received websocket client message");
 
                 match serde_json::from_str::<ClientMessage>(&text) {
                     Ok(client_msg) => {
@@ -256,7 +256,6 @@ impl RgWebsocket {
                 _ = project.broadcast.send(ServerMessage::ProjectConfig {
                     name: project.name.clone(),
                     is_public: project.is_public,
-                    password: project.password.clone(),
                 });
 
                 Err(ServerMessageError::None)

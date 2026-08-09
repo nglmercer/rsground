@@ -1,5 +1,8 @@
 use actix_error_proc::{proof_route, HttpResult};
-use actix_web::{get, web, HttpRequest, HttpResponse, Responder};
+use actix_web::{
+    cookie::{time::Duration as CookieDuration, Cookie, SameSite},
+    get, web, HttpRequest, HttpResponse, Responder,
+};
 use oauth2::{AuthorizationCode, CsrfToken, Scope, TokenResponse};
 use serde::Deserialize;
 use uuid::Uuid;
@@ -14,9 +17,46 @@ pub struct OAuthData {
     pub client: Option<oauth2::basic::BasicClient>,
 }
 
+const OAUTH_STATE_COOKIE: &str = "rsground_oauth_state";
+
 #[derive(Deserialize)]
 pub struct AuthRequest {
     pub code: String,
+    pub state: String,
+}
+
+fn oauth_cookie_secure() -> bool {
+    std::env::var("RSGROUND_ENV").is_ok_and(|value| {
+        value.eq_ignore_ascii_case("production") || value.eq_ignore_ascii_case("prod")
+    })
+}
+
+fn oauth_state_cookie(value: impl Into<String>) -> Cookie<'static> {
+    Cookie::build(OAUTH_STATE_COOKIE, value.into())
+        .path("/auth")
+        .http_only(true)
+        .same_site(if oauth_cookie_secure() {
+            SameSite::None
+        } else {
+            SameSite::Lax
+        })
+        .secure(oauth_cookie_secure())
+        .max_age(CookieDuration::minutes(10))
+        .finish()
+}
+
+fn clear_oauth_state_cookie() -> Cookie<'static> {
+    Cookie::build(OAUTH_STATE_COOKIE, "")
+        .path("/auth")
+        .http_only(true)
+        .same_site(if oauth_cookie_secure() {
+            SameSite::None
+        } else {
+            SameSite::Lax
+        })
+        .secure(oauth_cookie_secure())
+        .max_age(CookieDuration::ZERO)
+        .finish()
 }
 
 #[get("/auth")]
@@ -27,12 +67,13 @@ pub async fn auth(oauth: web::Data<OAuthData>) -> impl Responder {
         }));
     };
 
-    let (auth_url, _csrf_token) = client
+    let (auth_url, csrf_token) = client
         .authorize_url(CsrfToken::new_random)
         .add_scope(Scope::new("read:user".to_string()))
         .url();
 
     HttpResponse::Found()
+        .cookie(oauth_state_cookie(csrf_token.secret().to_owned()))
         .append_header(("Location", auth_url.to_string()))
         .finish()
 }
@@ -49,10 +90,18 @@ async fn callback(
     state: web::Data<AppState>,
     query: web::Query<AuthRequest>,
     oauth_data: web::Data<OAuthData>,
+    req: HttpRequest,
 ) -> HttpResult<HttpErrors> {
     let Some(client) = oauth_data.client.as_ref() else {
         return Err(HttpErrors::OAuthNotConfigured);
     };
+
+    let Some(state_cookie) = req.cookie(OAUTH_STATE_COOKIE) else {
+        return Err(HttpErrors::InvalidOAuthState);
+    };
+    if state_cookie.value() != query.state {
+        return Err(HttpErrors::InvalidOAuthState);
+    }
 
     let code = AuthorizationCode::new(query.code.clone());
 
@@ -82,13 +131,17 @@ async fn callback(
 
     let jwt = user_data.encode()?;
 
-    Ok(HttpResponse::Ok().json(serde_json::json!({
-        "jwt": jwt,
-        "id": github_user.login,
-        "name": github_user.login,
-        "avatar_url": github_user.avatar_url,
-        "is_guest": false,
-    })))
+    let response = HttpResponse::Ok()
+        .cookie(clear_oauth_state_cookie())
+        .json(serde_json::json!({
+            "jwt": jwt,
+            "id": github_user.login,
+            "name": github_user.login,
+            "avatar_url": github_user.avatar_url,
+            "is_guest": false,
+        }));
+
+    Ok(response)
 }
 
 #[derive(Deserialize)]
