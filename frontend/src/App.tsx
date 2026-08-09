@@ -1,38 +1,47 @@
 import "./App.sass";
 import "../public/fonts/inter.css";
 
-import { Component, createSignal, onMount, Show } from "solid-js";
+import { Component, lazy, onMount, Suspense } from "solid-js";
 import { Spinner } from "@components/Spinner";
 import { checkForAuth, interceptAuthCallback } from "@features/auth/utils";
 import { interceptProjectRoutes } from "@features/colab/utils";
-import { startReceivingSync } from "@features/editor/services";
-import { Panels } from "@features/panels/views";
-import { Sidebar } from "@features/sidebar/views";
 
 import "@features/theme/stores"
 
-const App: Component = () => {
-  const [ready, setReady] = createSignal(false);
+const Sidebar = lazy(() =>
+  import("@features/sidebar/views").then(({ Sidebar }) => ({ default: Sidebar }))
+);
 
-  onMount(async () => {
-    try {
-      await interceptAuthCallback();
-      await checkForAuth();
-      interceptProjectRoutes();
-      startReceivingSync();
-    } catch (error) {
-      console.error("Unable to initialize RsGround:", error);
-    } finally {
-      setReady(true);
-    }
+const Panels = lazy(() =>
+  import("@features/panels/views").then(({ Panels }) => ({ default: Panels }))
+);
+
+const App: Component = () => {
+  onMount(() => {
+    void initializeApp();
   });
 
   return (
-    <Show when={ready()} fallback={<Spinner />}>
+    <Suspense fallback={<Spinner />}>
       <Sidebar />
       <Panels />
-    </Show>
+    </Suspense>
   );
 };
+
+async function initializeApp() {
+  try {
+    await interceptAuthCallback();
+    await checkForAuth();
+
+    // Keep the sync listener out of the initial bundle with the editor UI.
+    const { startReceivingSync } = await import("@features/editor/services");
+    startReceivingSync();
+
+    interceptProjectRoutes();
+  } catch (error) {
+    console.error("Unable to initialize RsGround:", error);
+  }
+}
 
 export default App;

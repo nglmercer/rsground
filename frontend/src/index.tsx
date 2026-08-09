@@ -1,5 +1,7 @@
 /* @refresh reload */
-import 'solid-devtools';
+if (import.meta.env.DEV) {
+  void import('solid-devtools');
+}
 
 import { render } from 'solid-js/web';
 

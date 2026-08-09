@@ -51,3 +51,15 @@
   background: var(--surface2-background)
   color: var(--surface2-foreground)
 
+@media (max-width: 750px)
+  .nav_item
+    position: relative
+    top: 0 !important
+    left: 0 !important
+
+    [data-closed] &
+      top: 0 !important
+      left: 0 !important
+
+      &:nth-last-child(1) svg
+        transform: none

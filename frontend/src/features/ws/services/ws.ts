@@ -2,7 +2,6 @@ import { getOwner, observable, Owner, runWithOwner, untrack } from "solid-js";
 
 import { authInfo } from "@features/auth/stores";
 import { projectInfo, setProjectInfo } from "@features/colab/stores";
-import { openFile } from "@features/editor/services";
 import { syncFiles } from "@features/file-explorer/services";
 import { BACKEND_HOST } from "@services";
 import { ProjectDefaults, ProjectInfoField, WebSocketConfig } from "@constants";
@@ -62,7 +61,9 @@ export function startWebsocket() {
 
     syncFiles(msg.files);
 
-    openFile(ProjectDefaults.MainFile);
+    void import("@features/editor/services").then(({ openFile }) => {
+      openFile(ProjectDefaults.MainFile);
+    });
   }));
 }
 
