@@ -1,6 +1,6 @@
 mod common;
 use common::{print_output, HELLO_WORLD_OUTPUT, HELLO_WORLD_RS};
-use rsground_runner::constants::{MAIN_EXECUTABLE, MAIN_FILE, RUNNER_MAIN_EXECUTABLE};
+use rsground_runner::constants::{EMPTY_ARGS, MAIN_EXECUTABLE, MAIN_FILE, RUNNER_MAIN_EXECUTABLE};
 use rsground_runner::Runner;
 
 #[tokio::test]
@@ -44,7 +44,7 @@ async fn rust_executable() {
 
     assert_eq!(output.status.success(), true);
 
-    let output = Runner::collect_output(&mut runner.cmd(RUNNER_MAIN_EXECUTABLE, [] as [&str; 0]))
+    let output = Runner::collect_output(&mut runner.cmd(RUNNER_MAIN_EXECUTABLE, EMPTY_ARGS))
         .await
         .expect("Cannot run code");
 
@@ -90,7 +90,7 @@ async fn rust_multi_container_executable() {
         .expect("Cannot copy executable");
 
     let output =
-        Runner::collect_output(&mut executer_runner.cmd(RUNNER_MAIN_EXECUTABLE, [] as [&str; 0]))
+        Runner::collect_output(&mut executer_runner.cmd(RUNNER_MAIN_EXECUTABLE, EMPTY_ARGS))
             .await
             .expect("Cannot run code");
 

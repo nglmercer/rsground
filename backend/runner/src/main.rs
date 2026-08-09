@@ -17,7 +17,7 @@ async fn main() {
         .unwrap();
 
     runner
-        .create_file("main.c", r#"int main() { return 0; }"#)
+        .create_file(constants::C_MAIN_FILE, constants::C_MAIN_SOURCE)
         .await
         .unwrap();
 

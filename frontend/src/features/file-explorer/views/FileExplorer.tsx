@@ -9,7 +9,7 @@ import { FolderPlusIcon } from "@icons/FolderPlus";
 import { FolderMinusIcon } from "@icons/FolderMinus";
 import { BrandsRustIcon } from "@icons/BrandsRust";
 import { FileLinesIcon } from "@icons/FileLines";
-import { ContextMenuLevel } from "@constants";
+import { ContextMenuLevel, FilePath } from "@constants";
 
 import { createNewFile, syncFiles } from "../services";
 import { fileExplorer } from "../stores";
@@ -61,7 +61,7 @@ function RenderFile(props: { data: FileNode }) {
       }}
       onClick={() => openFile(props.data.fullPath)}
     >
-      {props.data.filename.endsWith(".rs")
+      {props.data.filename.endsWith(FilePath.RustExtension)
         ? <BrandsRustIcon />
         : <FileLinesIcon />}
       <span>{props.data.filename}</span>

@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 use crate::auth::jwt::RgUserData;
 use crate::collab::{Document, DocumentInfo};
-use crate::constants::{limits, project as project_constants, websocket};
+use crate::constants::{filesystem, limits, project as project_constants, websocket};
 use crate::http_errors::HttpErrors;
 use crate::utils::{ArcStr, AsyncInto, ToStream};
 use crate::ws::messages::{InternalMessage, ServerMessage};
@@ -131,7 +131,10 @@ impl Project {
         !path.as_os_str().is_empty()
             && path.as_os_str().as_encoded_bytes().len() <= MAX_FILE_PATH_BYTES
             && !path.is_absolute()
-            && !path.as_os_str().as_encoded_bytes().contains(&0)
+            && !path
+                .as_os_str()
+                .as_encoded_bytes()
+                .contains(&filesystem::NUL_BYTE)
             && path
                 .components()
                 .all(|component| matches!(component, Component::Normal(_)))

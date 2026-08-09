@@ -1,7 +1,7 @@
 use common::cargo::cargo_init;
 use common::print_output;
 use rsground_runner::constants::{
-    BUILD, BUILT_BINARY, BUILT_BINARY_RELATIVE, CARGO, MAIN_EXECUTABLE, RELEASE,
+    BUILD, BUILT_BINARY, BUILT_BINARY_RELATIVE, CARGO, EMPTY_ARGS, MAIN_EXECUTABLE, RELEASE,
     RUNNER_MAIN_EXECUTABLE,
 };
 use rsground_runner::Runner;
@@ -46,7 +46,7 @@ async fn cargo_run() {
         .expect("Cannot copy executable");
 
     let output =
-        Runner::collect_output(&mut executer_runner.cmd(RUNNER_MAIN_EXECUTABLE, [] as [&str; 0]))
+        Runner::collect_output(&mut executer_runner.cmd(RUNNER_MAIN_EXECUTABLE, EMPTY_ARGS))
             .await
             .unwrap();
 

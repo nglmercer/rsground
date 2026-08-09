@@ -1,5 +1,6 @@
 import { createStore, SetStoreFunction, Store } from "solid-js/store";
 import { FileExplorerNode, FileExplorerStore, FileNodeKind } from "../types";
+import { FilePath } from "@constants";
 
 export const [fileExplorer, setFileExplorer] = createStore<FileExplorerStore>({
   nodes: [],
@@ -13,7 +14,7 @@ export const [fileExplorer, setFileExplorer] = createStore<FileExplorerStore>({
 export function getNodeByPath(
   fullpath: string,
 ): [Store<FileExplorerNode>, SetStoreFunction<FileExplorerNode>] {
-  const segments = fullpath.split("/");
+  const segments = fullpath.split(FilePath.Separator);
 
   // Trim target filename, leave just parent folders
   segments.pop();

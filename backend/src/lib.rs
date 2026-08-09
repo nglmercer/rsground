@@ -85,10 +85,10 @@ pub fn validate_configuration(bind_address: &str) -> Result<(), String> {
                 !origins.is_empty() && origins.iter().all(|origin| *origin != http::CORS_WILDCARD)
             })
     {
-        return Err(
-            "RSGROUND_CORS_ORIGINS must contain explicit non-wildcard origins for deployment"
-                .to_owned(),
-        );
+        return Err(format!(
+            "{} must contain explicit non-wildcard origins for deployment",
+            env::CORS_ORIGINS
+        ));
     }
 
     rsground_runner::Runner::validate_environment().map_err(|error| {

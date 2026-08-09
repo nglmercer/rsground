@@ -18,7 +18,8 @@ pub static JWT_SECRET: LazyLock<String> = LazyLock::new(|| {
         .filter(|secret| !secret.trim().is_empty())
         .unwrap_or_else(|| {
             log::warn!(
-                "JWT_SECRET is not set; using an ephemeral local-development secret. Set it before deployment."
+                "{} is not set; using an ephemeral local-development secret. Set it before deployment.",
+                env::JWT_SECRET
             );
             format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple())
         })
@@ -30,12 +31,13 @@ pub(crate) fn validate_deployment_secret() -> Result<(), String> {
         .ok()
         .filter(|secret| !secret.trim().is_empty())
     else {
-        return Err("JWT_SECRET must be set for deployment".to_owned());
+        return Err(format!("{} must be set for deployment", env::JWT_SECRET));
     };
 
     if secret.len() < auth::MIN_DEPLOYMENT_SECRET_BYTES {
         return Err(format!(
-            "JWT_SECRET must contain at least {} bytes for deployment",
+            "{} must contain at least {} bytes for deployment",
+            env::JWT_SECRET,
             auth::MIN_DEPLOYMENT_SECRET_BYTES
         ));
     }

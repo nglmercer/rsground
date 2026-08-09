@@ -1,4 +1,5 @@
 import { FileExplorerNode, FileNode, FileNodeKind, FolderNode } from "../types";
+import { FilePath } from "@constants";
 
 export function mergeFiles(
   nodes: string[],
@@ -11,7 +12,7 @@ export function mergeFiles(
 
   // Collect files
   for (const node of nodes) {
-    const [first, ...path] = node.split("/");
+    const [first, ...path] = node.split(FilePath.Separator);
 
     if (path.length === 0) {
       files.push({
@@ -25,7 +26,7 @@ export function mergeFiles(
       // Append remaining segments
       pending_folders[first] = [
         ...(pending_folders[first] ?? []),
-        path.join("/"),
+        path.join(FilePath.Separator),
       ];
     }
   }
@@ -41,7 +42,11 @@ export function mergeFiles(
       data: {
         name,
         fullPath: prefix + name,
-        children: mergeFiles(children, oldFolder, prefix + name + "/"),
+        children: mergeFiles(
+          children,
+          oldFolder,
+          prefix + name + FilePath.Separator,
+        ),
       },
     });
   }

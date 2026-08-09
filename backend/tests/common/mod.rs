@@ -5,7 +5,7 @@ use actix_web::{App, HttpServer};
 use awc::http::header::TryIntoHeaderPair;
 
 pub use backend::constants::{
-    access, http, json, output_channel, route, url, websocket, ws_action,
+    access, collaboration, http, json, output_channel, route, url, websocket, ws_action,
 };
 use backend::constants::{defaults, env};
 
@@ -16,7 +16,7 @@ pub const TEST_FILE: &str = "test";
 pub const TEST_PASSWORD: &str = "correct horse battery staple";
 pub const HELLO_WORLD_OUTPUT: &str = "Hello World\n";
 pub const TEST_INSERT_TEXT: &str = "hello world";
-pub const INITIAL_REVISION: u64 = 0;
+pub const INITIAL_REVISION: u64 = collaboration::INITIAL_REVISION as u64;
 pub const AFTER_INSERT_REVISION: u64 = 1;
 pub const DELETE_OPERATION: i32 = -5;
 pub const RETAIN_OPERATION: i32 = 6;
@@ -25,6 +25,7 @@ pub const WS_RECEIVE_TIMEOUT_MS: u64 = 500;
 pub const TEST_SERVER_WORKERS: usize = 1;
 pub const READY_ATTEMPTS: usize = 100;
 pub const READY_RETRY_DELAY_MS: u64 = 10;
+pub const TEST_BIND_ADDRESS: &str = "127.0.0.1:0";
 
 tokio::task_local! {
     static TEST_API_BASE: String;
@@ -37,7 +38,7 @@ struct TestServer {
 
 impl TestServer {
     async fn start() -> Self {
-        let listener = TcpListener::bind("127.0.0.1:0").expect("Cannot bind test server");
+        let listener = TcpListener::bind(TEST_BIND_ADDRESS).expect("Cannot bind test server");
         let address = listener
             .local_addr()
             .expect("Cannot read test server address");
@@ -58,7 +59,7 @@ impl TestServer {
         let handle = server.handle();
         actix_rt::spawn(server);
 
-        let base_url = format!("http://{address}");
+        let base_url = format!("{}{address}", url::HTTP_SCHEME);
         wait_until_ready(&base_url).await;
 
         Self { base_url, handle }
@@ -105,16 +106,6 @@ where
     TEST_API_BASE.scope(server.base_url.clone(), test()).await
 }
 
-#[macro_export(local_inner_macros)]
-macro_rules! _const {
-    (API_URL) => {
-        defaults::BIND_ADDRESS
-    };
-    (WS_URL) => {
-        "ws://localhost:8080/ws"
-    };
-}
-
 pub fn auth_header(token: impl fmt::Display) -> impl TryIntoHeaderPair {
     (
         http::AUTHORIZATION_HEADER,
@@ -141,7 +132,7 @@ fn api_base_url() -> String {
 
     TEST_API_BASE
         .try_with(Clone::clone)
-        .unwrap_or_else(|_| format!("http://{}", defaults::BIND_ADDRESS))
+        .unwrap_or_else(|_| format!("{}{}", url::HTTP_SCHEME, defaults::BIND_ADDRESS))
 }
 
 #[macro_export]

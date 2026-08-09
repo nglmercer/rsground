@@ -4,7 +4,7 @@ use actix_ws as ws;
 use futures::StreamExt as _;
 
 use crate::collab::Document;
-use crate::constants::websocket;
+use crate::constants::{collaboration, websocket};
 use crate::project::{AccessLevel, MAX_PROJECT_FILES, MAX_PROJECT_PASSWORD_BYTES};
 use crate::utils::{ArcStr, ToStream};
 use crate::ws::messages::{ClientMessage, ServerMessage, ServerMessageError};
@@ -114,7 +114,8 @@ impl RgWebsocket {
                     let Some(doc) = project.get_file(&path) else {
                         return Err(ServerMessageError::FileNotFound(path));
                     };
-                    self.sync_docs.insert(path.clone(), (doc, 0));
+                    self.sync_docs
+                        .insert(path.clone(), (doc, collaboration::INITIAL_REVISION));
                 }
 
                 let Some((doc, revision)) = self.sync_docs.get_mut(&path) else {
@@ -142,7 +143,8 @@ impl RgWebsocket {
                 }
             }
             InternalMessage::Create { path, doc } => {
-                self.sync_docs.insert(path, (doc, 0));
+                self.sync_docs
+                    .insert(path, (doc, collaboration::INITIAL_REVISION));
 
                 Err(ServerMessageError::None)
             }

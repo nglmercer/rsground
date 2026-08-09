@@ -2,6 +2,7 @@ import { autocompletion, CompletionContext } from "@codemirror/autocomplete";
 import { rust, rustLanguage } from "@codemirror/lang-rust";
 import { syntaxHighlighting } from "@codemirror/language";
 import { basicSetup } from "codemirror";
+import { EditorConfig } from "@constants";
 import { rsgroundTheme } from "./rsgroundTheme";
 
 const keywords = [
@@ -14,7 +15,7 @@ const keywords = [
 const localCompletions = [
   ...(keywords.map((keyword) => ({
     label: keyword,
-    type: "keyword",
+      type: EditorConfig.CompletionKeywordType,
   }))),
 ];
 
@@ -23,8 +24,8 @@ export function rustExtensions(styles: Record<string, string>) {
     basicSetup,
     syntaxHighlighting(rsgroundTheme),
     autocompletion({
-      interactionDelay: 0,
-      activateOnTypingDelay: 0,
+      interactionDelay: EditorConfig.CompletionInteractionDelayMs,
+      activateOnTypingDelay: EditorConfig.CompletionActivateOnTypingDelayMs,
       closeOnBlur: false,
       tooltipClass: () => styles.completion_tooltip,
       optionClass: (completion) => {

@@ -8,6 +8,7 @@ import { BrandsGithubIcon } from "@icons/BrandsGithub";
 
 import { projectAccess } from "../stores";
 import { createProject } from "../services";
+import { Route } from "@constants";
 
 import styles from "./WaitingAccess.module.sass";
 
@@ -29,7 +30,7 @@ export function WaitingAccess() {
           onClick={async () => {
             let newProject = await createProject(authInfo().jwt);
 
-            location.pathname = "/" + newProject;
+      location.pathname = Route.Root + newProject;
           }}
         >
           Create new

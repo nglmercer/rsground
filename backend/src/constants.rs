@@ -58,6 +58,14 @@ pub mod limits {
     pub const MAX_DOCUMENT_BYTES: usize = 256 * 1024;
 }
 
+pub mod collaboration {
+    pub const INITIAL_REVISION: usize = 0;
+}
+
+pub mod filesystem {
+    pub const NUL_BYTE: u8 = 0;
+}
+
 pub mod auth {
     pub const OAUTH_STATE_COOKIE: &str = "rsground_oauth_state";
     pub const OAUTH_COOKIE_PATH: &str = "/auth";

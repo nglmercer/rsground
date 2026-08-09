@@ -10,7 +10,7 @@ import { outputPanel, setOutputPanel } from "../stores";
 
 import styles from "./OutputPanel.module.sass";
 import { createSignal, onMount, Show } from "solid-js";
-import { UiValue } from "@constants";
+import { ProcessExitCode, UiValue } from "@constants";
 
 const decoder = new TextDecoder();
 
@@ -73,7 +73,7 @@ export function OutputPanel() {
           <SkullIcon />
         </li>
 
-        <Show when={exitCode() == 0}>
+        <Show when={exitCode() == ProcessExitCode.Success}>
           <li>
             Successfully
           </li>

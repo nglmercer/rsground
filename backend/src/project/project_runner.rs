@@ -199,7 +199,10 @@ async fn execute_inner(project: ProjectExecuter, abort: oneshot::Receiver<()>) -
     };
 
     let (exit_code, _, _) = Runner::stream_output(
-        &mut runner.cmd(project::RUNNER_MAIN_EXECUTABLE, [] as [&str; 0]),
+        &mut runner.cmd(
+            project::RUNNER_MAIN_EXECUTABLE,
+            rsground_runner::constants::EMPTY_ARGS,
+        ),
         stream!(OutputChannel::Stdout),
         stream!(OutputChannel::Stderr),
         Some(abort),

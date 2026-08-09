@@ -20,7 +20,7 @@ import {
 } from "../stores";
 import { unicodeLength } from "./unicodeLength";
 import { applyOperationToView, syncAnnotationType } from "./applyOperation";
-import { EditingFileField } from "@constants";
+import { EditingFileField, TextDelimiter } from "@constants";
 
 type PendingChanges = {
   outstanding: OpSeq | null;
@@ -153,7 +153,7 @@ function anyEventHandler(file: FileNode) {
 
     update.changes.iterChanges(
       (fromA, toA, _fromB, _toB, insert) => {
-        const content = insert.sliceString(0, insert.length, "\n");
+        const content = insert.sliceString(0, insert.length, TextDelimiter.Newline);
 
         fromA = buffer.transform_index(fromA);
         toA = buffer.transform_index(toA);

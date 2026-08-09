@@ -53,6 +53,11 @@ export const ProjectDefaults = {
   ForkPath: "/fork",
 } as const;
 
+export const FilePath = {
+  Separator: "/",
+  RustExtension: ".rs",
+} as const;
+
 export const ProjectUserTuple = {
   NameIndex: 0,
   AccessIndex: 1,
@@ -156,12 +161,72 @@ export const UiValue = {
   CursorHashOffset: 1,
 } as const;
 
+export const AnsiCode = {
+  Reset: 0,
+  Bold: 1,
+  Italic: 3,
+  Underline: 4,
+  BoldOff: 22,
+  ItalicOff: 23,
+  UnderlineOff: 24,
+  ForegroundReset: 39,
+  BackgroundReset: 49,
+  ForegroundExtended: 38,
+  BackgroundExtended: 48,
+  ForegroundBlack: 30,
+  ForegroundWhite: 37,
+  ForegroundBrightBlack: 90,
+  ForegroundBrightWhite: 97,
+  BackgroundBlack: 40,
+  BackgroundWhite: 47,
+  BackgroundBrightBlack: 100,
+  BackgroundBrightWhite: 107,
+  IndexedColorMode: 5,
+  RgbColorMode: 2,
+  ColorCubeStart: 16,
+  ColorCubeEnd: 232,
+  ColorCubeSize: 6,
+  ColorCubeRedDivisor: 36,
+  ColorCubeGreenDivisor: 6,
+  GrayscaleStart: 232,
+  GrayscaleBase: 8,
+  GrayscaleStep: 10,
+} as const;
+
+export const AnsiPalette = {
+  Base: [
+    [0, 0, 0],
+    [221, 33, 64],
+    [0, 255, 0],
+    [255, 255, 0],
+    [0, 68, 170],
+    [255, 0, 255],
+    [0, 255, 255],
+    [255, 255, 255],
+  ],
+  ColorCube: [0, 95, 135, 175, 215, 255],
+} as const;
+
+export const ProcessExitCode = {
+  Success: 0,
+} as const;
+
 export const RandomName = {
   NumberRange: 999,
 } as const;
 
 export const Sync = {
   Annotation: "SYNC",
+} as const;
+
+export const TextDelimiter = {
+  Newline: "\n",
+} as const;
+
+export const EditorConfig = {
+  CompletionInteractionDelayMs: 0,
+  CompletionActivateOnTypingDelayMs: 0,
+  CompletionKeywordType: "keyword",
 } as const;
 
 export const SelectFieldConfig = {

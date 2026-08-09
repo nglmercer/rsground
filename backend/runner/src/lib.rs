@@ -38,7 +38,7 @@ impl Runner {
 
         let mut builder = fs::DirBuilder::new();
         #[cfg(unix)]
-        builder.mode(0o700);
+        builder.mode(runner_constants::TEMP_HOME_MODE);
         builder.create(&temp_home).await?;
 
         Ok(temp_home)
@@ -163,7 +163,11 @@ impl Runner {
                 runner_constants::CPU_LIMIT_SECS,
                 runner_constants::CPU_LIMIT_SECS,
             )
-            .setrlimit(hakoniwa::Rlimit::Core, 0, 0)
+            .setrlimit(
+                hakoniwa::Rlimit::Core,
+                runner_constants::DISABLED_RLIMIT,
+                runner_constants::DISABLED_RLIMIT,
+            )
             .setrlimit(
                 hakoniwa::Rlimit::Fsize,
                 runner_constants::FILE_SIZE_LIMIT_BYTES,
@@ -508,9 +512,9 @@ impl Runner {
             // loader, so no patch is needed in development mode.
             return Ok(Output {
                 status: ExitStatus {
-                    code: 0,
+                    code: runner_constants::SUCCESS_EXIT_CODE,
                     reason: runner_constants::NO_PATCH_REASON.to_owned(),
-                    exit_code: Some(0),
+                    exit_code: Some(runner_constants::SUCCESS_EXIT_CODE),
                     rusage: None,
                     proc_pid_smaps_rollup: None,
                     proc_pid_status: None,

@@ -13,11 +13,11 @@ import {
 } from "../stores";
 import { applyOperationToString } from "../utils";
 import { OpSeq } from "frontend-wasm";
-import { DockviewConfig, EditingFileField, Panel } from "@constants";
+import { DockviewConfig, EditingFileField, FilePath, Panel } from "@constants";
 
 export async function openFile(filepath: string) {
   const id = `${Panel.FilePrefix}${filepath}`;
-  const filename = filepath.split("/").pop();
+  const filename = filepath.split(FilePath.Separator).pop();
 
   if (!untrack(dockview).getPanel(id)) {
     untrack(dockview).addPanel({
