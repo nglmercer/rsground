@@ -4,6 +4,16 @@ import { fileURLToPath } from "node:url";
 const frontendRoot = fileURLToPath(new URL(".", import.meta.url));
 
 export default defineConfig({
+  css: {
+    preprocessorOptions: {
+      sass: {
+        api: "modern",
+        silenceDeprecations: [
+          "mixed-decls",
+        ],
+      },
+    },
+  },
   resolve: {
     conditions: ["browser", "development"],
     alias: {

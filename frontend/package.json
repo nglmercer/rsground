@@ -5,8 +5,12 @@
   "description": "",
   "type": "module",
   "scripts": {
+    "wasm:build": "wasm-pack build ../frontend-wasm --target bundler",
+    "prestart": "pnpm run wasm:build",
     "start": "vite",
+    "predev": "pnpm run wasm:build",
     "dev": "vite",
+    "prebuild": "pnpm run wasm:build",
     "build": "vite build",
     "serve": "vite preview",
     "test": "vitest run",

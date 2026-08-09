@@ -1,7 +1,10 @@
 [package]
 name = "frontend-wasm"
 version = "0.1.0"
-authors = []
+description = "WebAssembly operational-transform bindings for RsGround"
+repository = "https://github.com/RustLangES/rsground"
+license = "MIT"
+authors = ["Apika Luca"]
 edition = "2021"
 
 [lib]

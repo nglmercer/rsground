@@ -1,5 +1,4 @@
 import "./App.sass";
-import "../public/fonts/inter.css";
 
 import { Component, lazy, onMount, Suspense } from "solid-js";
 import { Spinner } from "@components/Spinner";

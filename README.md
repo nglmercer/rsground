@@ -8,7 +8,7 @@ SolidJS frontend, and a WebAssembly operational-transform layer.
 From the repository root:
 
 ```bash
-wasm-pack build frontend-wasm --target web
+wasm-pack build frontend-wasm --target bundler
 pnpm --dir frontend install --frozen-lockfile
 ```
 
