@@ -14,7 +14,7 @@ use std::sync::LazyLock;
 use actix_cors::Cors;
 use auth::github;
 use auth::routes::OAuthData;
-use state::AppState;
+use state::{AppState, DEFAULT_MAX_USERS};
 use tokio::sync::Mutex;
 
 #[derive(Clone)]
@@ -37,11 +37,20 @@ pub fn new_app_data() -> AppData {
         app_state: actix_web::web::Data::new(AppState {
             manager: Mutex::new(project::ProjectManager::new()).into(),
             usernames: Mutex::new(HashMap::new()).into(),
+            max_users: configured_max_users(),
         }),
         oauth_data: actix_web::web::Data::new(OAuthData {
             client: github::get_oauth_client(),
         }),
     }
+}
+
+fn configured_max_users() -> usize {
+    std::env::var("RSGROUND_MAX_USERS")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .filter(|limit: &usize| *limit > 0)
+        .unwrap_or(DEFAULT_MAX_USERS)
 }
 
 pub fn initialize() {
@@ -64,9 +73,19 @@ pub fn validate_configuration(bind_address: &str) -> Result<(), String> {
     if (production || public_bind)
         && !std::env::var("RSGROUND_CORS_ORIGINS")
             .ok()
-            .is_some_and(|origins| origins.split(',').any(|origin| !origin.trim().is_empty()))
+            .is_some_and(|origins| {
+                let origins = origins
+                    .split(',')
+                    .map(str::trim)
+                    .filter(|origin| !origin.is_empty())
+                    .collect::<Vec<_>>();
+                !origins.is_empty() && origins.iter().all(|origin| *origin != "*")
+            })
     {
-        return Err("RSGROUND_CORS_ORIGINS must be set for deployment".to_owned());
+        return Err(
+            "RSGROUND_CORS_ORIGINS must contain explicit non-wildcard origins for deployment"
+                .to_owned(),
+        );
     }
 
     rsground_runner::Runner::validate_environment().map_err(|error| {

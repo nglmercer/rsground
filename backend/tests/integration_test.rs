@@ -1,6 +1,7 @@
 mod common;
 
 use futures_util::{sink::SinkExt, stream::StreamExt};
+use std::time::Duration;
 
 async fn login_as(guest_name: &str) -> (String, String) {
     request!([POST] "/auth/guest"
@@ -146,4 +147,64 @@ async fn test_run_code_body() {
     assert_eq!(buf, "Hello World\n");
 
     _ = ws!(recv user_ws, "sync_output_end");
+}
+
+#[actix_rt::test]
+async fn test_project_password_is_not_disclosed() {
+    common::with_test_server(test_project_password_is_not_disclosed_body).await;
+}
+
+async fn test_project_password_is_not_disclosed_body() {
+    let (owner, _) = login_as("owner").await;
+    let project_id = create_project(&owner).await;
+
+    let mut owner_ws = ws!(connect owner, &project_id);
+    _ = ws!(recv owner_ws, "welcome");
+    _ = ws!(recv owner_ws, "user_connected");
+
+    ws!(send owner_ws, "config" {
+        "password": "correct horse battery staple"
+    });
+    tokio::time::timeout(Duration::from_secs(3), async {
+        loop {
+            let Some(Ok(awc::ws::Frame::Text(msg))) = owner_ws.next().await else {
+                continue;
+            };
+            let value = ::serde_json::from_slice::<::serde_json::Value>(&msg).unwrap();
+            if value.get("action").and_then(|value| value.as_str()) == Some("project_config") {
+                break;
+            }
+        }
+    })
+    .await
+    .expect("project password update should be broadcast");
+
+    let (guest, _) = login_as("guest").await;
+    let project_url = common::api_url(&format!("/project/{project_id}"));
+
+    let response = ::awc::Client::new()
+        .get(&project_url)
+        .insert_header(common::auth_header(&guest))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 401);
+
+    let mut response = ::awc::Client::new()
+        .get(&project_url)
+        .insert_header(common::auth_header(&guest))
+        .insert_header(("X-Project-Password", "correct horse battery staple"))
+        .send()
+        .await
+        .unwrap();
+    let status = response.status();
+    let body = response.body().await.unwrap();
+    assert_eq!(status, 200, "{}", String::from_utf8_lossy(&body));
+
+    let body = ::serde_json::from_slice::<::serde_json::Value>(&body).unwrap();
+    assert!(body.get("password").is_none());
+    assert_eq!(
+        body.get("has_password").and_then(|value| value.as_bool()),
+        Some(true)
+    );
 }

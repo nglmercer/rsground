@@ -8,10 +8,13 @@ use crate::project::{Project, ProjectManager};
 use crate::utils::ArcStr;
 use crate::ws::messages::ServerMessageError;
 
+pub const DEFAULT_MAX_USERS: usize = 10_000;
+
 #[derive(Clone)]
 pub struct AppState {
     pub manager: Arc<Mutex<ProjectManager>>,
     pub usernames: Arc<Mutex<HashMap<ArcStr, ArcStr>>>,
+    pub(crate) max_users: usize,
 }
 
 impl AppState {
@@ -30,8 +33,14 @@ impl AppState {
     }
 
     /// Insert username of user with provided id
-    pub async fn add_username(&self, id: ArcStr, username: ArcStr) {
+    pub async fn add_username(&self, id: ArcStr, username: ArcStr) -> bool {
         log::trace!("New username registered: {id:?} = {username:?}");
-        self.usernames.lock().await.insert(id, username);
+        let mut usernames = self.usernames.lock().await;
+        if !usernames.contains_key(&id) && usernames.len() >= self.max_users {
+            return false;
+        }
+
+        usernames.insert(id, username);
+        true
     }
 }

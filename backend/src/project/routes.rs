@@ -114,6 +114,10 @@ pub async fn fork_project(
 
     let user_info = jwt::get_user_info(&req)?;
 
+    if !app_state.get_manager().await.has_capacity() {
+        return Err(HttpErrors::ProjectLimitReached);
+    }
+
     let forked_project = {
         let Ok(project) = app_state.get_project(project_id).await else {
             return Err(HttpErrors::ProjectDoesNotExist);

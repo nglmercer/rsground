@@ -19,7 +19,8 @@ untrusted-code service, not as a normal web application.
 - Deployment requires an explicit JWT secret and CORS allowlist. OAuth state is
   bound to an HttpOnly cookie and checked on callback.
 - Active projects, project files, file paths, document size, and WebSocket
-  continuation size are bounded.
+  continuation size are bounded. The in-memory username registry is bounded as
+  well.
 - The repository's application code contains no `unsafe` blocks. The previous
   local unsafe reader implementation was replaced with async-io's safe API.
 

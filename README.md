@@ -50,12 +50,13 @@ For a non-loopback or production bind, startup requires:
 Release binaries refuse the host-rootfs fallback and fail startup when the
 vendored image is missing. The runner also requires a Linux kernel with
 Landlock filesystem support. Set `RSGROUND_MAX_PROJECTS` to match the memory
-and process budget of the host; it defaults to 64.
+and process budget of the host; it defaults to 64. `RSGROUND_MAX_USERS`
+defaults to 10,000 to bound the in-memory guest registry.
 
 Put request and WebSocket rate limiting, connection limits, and request-size
 limits at the reverse proxy as well. The application limits active projects,
-files, paths, document size, and command wall time, but it is intentionally not
-a complete internet-facing rate limiter.
+users, files, paths, document size, and command wall time, but it is
+intentionally not a complete internet-facing rate limiter.
 
 See [SECURITY.md](SECURITY.md) for the threat model and deployment checklist.
 

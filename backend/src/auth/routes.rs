@@ -126,9 +126,12 @@ async fn callback(
         false,
     );
 
-    state
+    if !state
         .add_username(user_data.id.clone(), user_data.name.clone())
-        .await;
+        .await
+    {
+        return Err(HttpErrors::UserLimitReached);
+    }
 
     let jwt = user_data.encode()?;
 
@@ -164,9 +167,12 @@ async fn login_guest(
 
     let user_data = RgUserData::new(guest_uuid.as_str().into(), guest_name.into(), true);
 
-    state
+    if !state
         .add_username(user_data.id.clone(), user_data.name.clone())
-        .await;
+        .await
+    {
+        return Err(HttpErrors::UserLimitReached);
+    }
 
     let jwt = user_data.encode()?;
 
@@ -204,9 +210,12 @@ async fn update_name(
 
     let user_data = RgUserData::new(uuid.clone(), new_name.clone(), true);
 
-    state
+    if !state
         .add_username(user_data.id.clone(), user_data.name.clone())
-        .await;
+        .await
+    {
+        return Err(HttpErrors::UserLimitReached);
+    }
 
     let jwt = user_data.encode()?;
 

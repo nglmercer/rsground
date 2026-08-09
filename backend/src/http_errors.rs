@@ -31,6 +31,10 @@ pub enum HttpErrors {
     #[http_status(TooManyRequests)]
     ProjectLimitReached,
 
+    #[error("The server has reached its active user limit")]
+    #[http_status(TooManyRequests)]
+    UserLimitReached,
+
     #[error("Error fetching github user: {0}")]
     GithubUserFetch(reqwest::Error),
 

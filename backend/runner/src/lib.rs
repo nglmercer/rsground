@@ -57,9 +57,7 @@ impl Runner {
             ("/etc", FsAccess::R, false),
             ("/lib", FsAccess::R | FsAccess::X, false),
             ("/lib64", FsAccess::R | FsAccess::X, false),
-            ("/libexec", FsAccess::R | FsAccess::X, false),
             ("/usr", FsAccess::R | FsAccess::X, false),
-            ("/var", FsAccess::R, false),
         ];
 
         for (path, access, mounted) in paths {
@@ -156,7 +154,13 @@ impl Runner {
         let temp_home_str = temp_home
             .to_str()
             .ok_or_else(|| RunnerError::MissingRootfs(temp_home.display().to_string()))?;
-        let container = Self::create_container(temp_home_str, host_fallback)?;
+        let container = match Self::create_container(temp_home_str, host_fallback) {
+            Ok(container) => container,
+            Err(error) => {
+                _ = fs::remove_dir_all(&temp_home).await;
+                return Err(error);
+            }
+        };
 
         Ok(Self {
             container,
