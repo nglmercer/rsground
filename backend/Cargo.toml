@@ -16,6 +16,7 @@ thiserror.workspace = true
 tokio.workspace = true
 
 # Auth
+argon2 = "0.5.3"
 jsonwebtoken = { version = "10", features = ["aws_lc_rs"] }
 oauth2 = "5"
 reqwest = { version = "0.12.15", features = ["json", "default-tls"] }
@@ -24,7 +25,9 @@ uuid = { version = "1.3", features = ["serde", "v4"] }
 # Http server
 actix = "0.13"
 actix-cors = "0.7.1"
-actix_error_proc = { version = "1.1.4", features = ["thiserror"] }
+# 1.2 deprecates these macros in favor of a GPL-licensed replacement; keep the
+# existing MIT-compatible integration pinned until that licensing decision is explicit.
+actix_error_proc = { version = "=1.1.4", features = ["thiserror"] }
 actix-web = "4"
 actix-ws = "0.3.0"
 

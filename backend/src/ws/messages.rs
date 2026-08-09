@@ -111,6 +111,12 @@ pub enum ServerMessageError {
     #[error("File {0:?} already exists")]
     FileAlreadyExists(ArcStr),
 
+    #[error("Project file limit reached")]
+    ProjectFileLimit,
+
+    #[error("Project password is too long")]
+    PasswordTooLong,
+
     #[error("Invalid file path {0:?}")]
     InvalidFilePath(ArcStr),
 

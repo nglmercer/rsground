@@ -168,15 +168,13 @@ function ColabPublicPassword() {
 
       <Show when={projectInfo.is_public}>
         <TextField
-          value={projectInfo.password ?? ""}
           onInput={(ev) => {
             setPassword(ev.currentTarget.value);
-            setProjectInfo("password", ev.currentTarget.value);
           }}
           beforeIcon={<LockIcon />}
-          placeholder="Leave empty for no password"
+          placeholder="Set or clear the password"
         />
-        <span class={styles.password_hint}>Password is visible</span>
+        <span class={styles.password_hint}>The saved password is never shown</span>
       </Show>
     </>
   );

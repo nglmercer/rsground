@@ -19,6 +19,18 @@ pub enum HttpErrors {
     #[http_status(BadRequest)]
     InvalidGuestName,
 
+    #[error("Project name must contain between 1 and 128 characters")]
+    #[http_status(BadRequest)]
+    InvalidProjectName,
+
+    #[error("The server cannot start project sandboxes")]
+    #[http_status(ServiceUnavailable)]
+    RunnerUnavailable,
+
+    #[error("The server has reached its active project limit")]
+    #[http_status(TooManyRequests)]
+    ProjectLimitReached,
+
     #[error("Error fetching github user: {0}")]
     GithubUserFetch(reqwest::Error),
 

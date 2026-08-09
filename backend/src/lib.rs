@@ -61,13 +61,18 @@ pub fn validate_configuration(bind_address: &str) -> Result<(), String> {
         auth::jwt::validate_deployment_secret()?;
     }
 
-    if production
+    if (production || public_bind)
         && !std::env::var("RSGROUND_CORS_ORIGINS")
             .ok()
             .is_some_and(|origins| origins.split(',').any(|origin| !origin.trim().is_empty()))
     {
         return Err("RSGROUND_CORS_ORIGINS must be set for deployment".to_owned());
     }
+
+    rsground_runner::Runner::validate_environment().map_err(|error| {
+        log::error!("Runner configuration is invalid: {error}");
+        "The runner sandbox is not available".to_owned()
+    })?;
 
     Ok(())
 }
@@ -93,7 +98,7 @@ pub fn cors() -> Cors {
 
     let mut cors = Cors::default()
         .allowed_methods(["GET", "POST", "OPTIONS"])
-        .allowed_headers(["Authorization", "Content-Type"])
+        .allowed_headers(["Authorization", "Content-Type", "X-Project-Password"])
         .supports_credentials();
 
     for origin in origins {

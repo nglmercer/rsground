@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use actix::{Actor, ActorResponse, Addr, Context, Handler, Message, WrapFuture};
-use rsground_runner::Runner;
+use rsground_runner::{error::RunnerError, Runner};
 use tokio::sync::{broadcast, oneshot};
 use uuid::Uuid;
 
@@ -25,8 +25,8 @@ impl ProjectExecuter {
     pub async fn start(
         project_id: Uuid,
         broadcast: broadcast::Sender<ServerMessage>,
-    ) -> (Arc<Runner>, AbortNotify, Addr<Self>) {
-        let runner = Arc::new(Runner::new().await.expect("Cannot start runner"));
+    ) -> Result<(Arc<Runner>, AbortNotify, Addr<Self>), RunnerError> {
+        let runner = Arc::new(Runner::new().await?);
         let execution: AbortNotify = Mutex::new(None).into();
 
         let project_executer = Self {
@@ -36,7 +36,7 @@ impl ProjectExecuter {
             execution: execution.clone(),
         };
 
-        (runner, execution, project_executer.start())
+        Ok((runner, execution, project_executer.start()))
     }
 }
 

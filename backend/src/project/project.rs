@@ -3,19 +3,28 @@ use std::path::{Component, Path};
 use std::sync::Arc;
 
 use actix::Addr;
+use argon2::{
+    password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
+    Argon2,
+};
 use futures::StreamExt;
-use rsground_runner::Runner;
+use rsground_runner::{error::RunnerError, Runner};
 use tokio::sync::broadcast;
 use uuid::Uuid;
 
 use crate::auth::jwt::RgUserData;
 use crate::collab::{Document, DocumentInfo};
 use crate::http_errors::HttpErrors;
-use crate::utils::{ArcStr, AsyncDefault, AsyncInto, ToStream, EMPTY_STR};
+use crate::utils::{ArcStr, AsyncInto, ToStream};
 use crate::ws::messages::{InternalMessage, ServerMessage};
 
 use super::project_runner::{AbortNotify, Execute, ProjectExecuter};
 use super::AccessLevel;
+
+pub const MAX_PROJECT_FILES: usize = 256;
+pub const MAX_PROJECT_NAME_CHARS: usize = 128;
+pub const MAX_PROJECT_PASSWORD_BYTES: usize = 256;
+const MAX_FILE_PATH_BYTES: usize = 512;
 
 pub struct Project {
     pub id: Uuid,
@@ -25,6 +34,8 @@ pub struct Project {
     pub allowed_users: HashMap<ArcStr, AccessLevel>,
     pub requests: HashSet<ArcStr>,
     pub is_public: bool,
+    /// Argon2 password hash. The plaintext password is never retained or
+    /// returned by the API.
     pub password: Option<String>,
     pub internal: broadcast::Sender<InternalMessage>,
     pub broadcast: broadcast::Sender<ServerMessage>,
@@ -33,17 +44,17 @@ pub struct Project {
     execution: AbortNotify,
 }
 
-impl AsyncDefault for Project {
-    async fn default() -> Self {
+impl Project {
+    pub async fn new(owner: ArcStr, name: ArcStr) -> Result<Self, RunnerError> {
         let id = Uuid::new_v4();
         let broadcast = broadcast::channel(u8::MAX as usize).0;
 
-        let (runner, execution, executer) = ProjectExecuter::start(id, broadcast.clone()).await;
+        let (runner, execution, executer) = ProjectExecuter::start(id, broadcast.clone()).await?;
 
-        Self {
+        Ok(Self {
             id,
-            name: EMPTY_STR.clone(),
-            owner: EMPTY_STR.clone(),
+            name,
+            owner,
             documents: HashMap::new(),
             allowed_users: HashMap::new(),
             requests: HashSet::new(),
@@ -54,17 +65,7 @@ impl AsyncDefault for Project {
             runner,
             executer,
             execution,
-        }
-    }
-}
-
-impl Project {
-    pub async fn new(owner: ArcStr, name: ArcStr) -> Self {
-        Project {
-            name,
-            owner,
-            ..Project::default().await
-        }
+        })
     }
 
     pub fn get_runner(&self) -> Arc<Runner> {
@@ -127,12 +128,53 @@ impl Project {
         let path = Path::new(path);
 
         !path.as_os_str().is_empty()
-            && path.as_os_str().as_encoded_bytes().len() <= 256 * 1024
+            && path.as_os_str().as_encoded_bytes().len() <= MAX_FILE_PATH_BYTES
             && !path.is_absolute()
             && !path.as_os_str().as_encoded_bytes().contains(&0)
             && path
                 .components()
                 .all(|component| matches!(component, Component::Normal(_)))
+    }
+
+    pub fn is_valid_name(name: &str) -> bool {
+        let trimmed = name.trim();
+        !trimmed.is_empty()
+            && trimmed.chars().count() <= MAX_PROJECT_NAME_CHARS
+            && !trimmed.chars().any(char::is_control)
+    }
+
+    pub fn set_password(
+        &mut self,
+        password: Option<&str>,
+    ) -> Result<(), argon2::password_hash::Error> {
+        self.password = password
+            .map(|password| {
+                let salt = SaltString::generate(&mut OsRng);
+                Argon2::default()
+                    .hash_password(password.as_bytes(), &salt)
+                    .map(|hash| hash.to_string())
+            })
+            .transpose()?;
+
+        Ok(())
+    }
+
+    fn password_matches(&self, password: Option<&str>) -> bool {
+        let (Some(hash), Some(password)) = (self.password.as_deref(), password) else {
+            return false;
+        };
+
+        if password.len() > MAX_PROJECT_PASSWORD_BYTES {
+            return false;
+        }
+
+        let Ok(hash) = PasswordHash::new(hash) else {
+            return false;
+        };
+
+        Argon2::default()
+            .verify_password(password.as_bytes(), &hash)
+            .is_ok()
     }
 
     /// Get all file paths
@@ -145,7 +187,7 @@ impl Project {
             .await
     }
 
-    pub async fn fork(&self, owner: ArcStr) -> Project {
+    pub async fn fork(&self, owner: ArcStr) -> Result<Project, RunnerError> {
         let name = if self.name.ends_with(" (fork)") {
             self.name.clone()
         } else {
@@ -159,13 +201,9 @@ impl Project {
             .collect::<HashMap<ArcStr, Arc<Document>>>()
             .await;
 
-        let forked = Project {
-            name,
-            owner,
-            documents,
-            is_public: self.is_public,
-            ..Project::default().await
-        };
+        let mut forked = Project::new(owner, name).await?;
+        forked.documents = documents;
+        forked.is_public = self.is_public;
 
         // The document map is copied in memory, but each project owns a
         // separate runner home. Populate that home as well or a fork would
@@ -178,7 +216,7 @@ impl Project {
                 .inspect_err(|err| log::error!("Cannot seed fork file {path:?}: {err}"));
         }
 
-        forked
+        Ok(forked)
     }
 
     pub fn join_project(
@@ -190,8 +228,8 @@ impl Project {
             Ok(*access)
         } else if !self.is_public {
             Ok(AccessLevel::Queue)
-        } else if let Some(ref p_password) = self.password {
-            if password.is_none_or(|pass| &pass != p_password) {
+        } else if self.password.is_some() {
+            if !self.password_matches(password.as_deref()) {
                 return Err(HttpErrors::InvalidPassword);
             }
 

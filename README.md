@@ -36,6 +36,29 @@ fresh development checkout falls back to the host rootfs inside hakoniwa's
 namespaces so the playground can start immediately; install the vendored
 image before deploying.
 
+## Deployment
+
+Deploy the backend behind a TLS reverse proxy and use `wss://` for WebSockets.
+For a non-loopback or production bind, startup requires:
+
+- `RSGROUND_ENV=production`
+- `JWT_SECRET` with at least 32 random bytes
+- `RSGROUND_CORS_ORIGINS` containing the exact frontend origin(s)
+- GitHub OAuth variables and a callback URL when GitHub login is enabled
+- `backend/runner/lxc_rootfs` in the deployed artifact
+
+Release binaries refuse the host-rootfs fallback and fail startup when the
+vendored image is missing. The runner also requires a Linux kernel with
+Landlock filesystem support. Set `RSGROUND_MAX_PROJECTS` to match the memory
+and process budget of the host; it defaults to 64.
+
+Put request and WebSocket rate limiting, connection limits, and request-size
+limits at the reverse proxy as well. The application limits active projects,
+files, paths, document size, and command wall time, but it is intentionally not
+a complete internet-facing rate limiter.
+
+See [SECURITY.md](SECURITY.md) for the threat model and deployment checklist.
+
 ## Tests
 
 Integration tests start an isolated API automatically:

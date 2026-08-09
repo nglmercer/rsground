@@ -18,6 +18,7 @@ pub const BASE_ENV: [(&str, &str); 3] = [
 ];
 
 const VENDORED_ROOTFS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/lxc_rootfs");
+const COMMAND_WALL_TIME_SECS: u64 = 60;
 
 pub struct Runner {
     container: Container,
@@ -30,9 +31,44 @@ impl Runner {
         let mut temp_home = PathBuf::from("/tmp");
         temp_home.push(uuid::Uuid::new_v4().simple().to_string());
 
-        fs::create_dir(&temp_home).await?;
+        let mut builder = fs::DirBuilder::new();
+        #[cfg(unix)]
+        builder.mode(0o700);
+        builder.create(&temp_home).await?;
 
         Ok(temp_home)
+    }
+
+    fn configure_filesystem_policy(container: &mut Container, rootfs: &Path) {
+        use hakoniwa::landlock::{CompatMode, FsAccess, Resource, Ruleset};
+
+        let mut policy = Ruleset::default();
+        policy.restrict(Resource::FS, CompatMode::Enforce);
+
+        // The root filesystem is mounted read-only by hakoniwa. Only the
+        // per-project home and temporary directories need write/execute
+        // access; toolchain and system paths are read/execute only.
+        let paths = [
+            ("/home", FsAccess::R | FsAccess::W | FsAccess::X, true),
+            ("/tmp", FsAccess::R | FsAccess::W | FsAccess::X, true),
+            ("/dev", FsAccess::R | FsAccess::W, true),
+            ("/proc", FsAccess::R, true),
+            ("/bin", FsAccess::R | FsAccess::X, false),
+            ("/etc", FsAccess::R, false),
+            ("/lib", FsAccess::R | FsAccess::X, false),
+            ("/lib64", FsAccess::R | FsAccess::X, false),
+            ("/libexec", FsAccess::R | FsAccess::X, false),
+            ("/usr", FsAccess::R | FsAccess::X, false),
+            ("/var", FsAccess::R, false),
+        ];
+
+        for (path, access, mounted) in paths {
+            if mounted || rootfs.join(path.trim_start_matches('/')).exists() {
+                policy.allow_path(path, access);
+            }
+        }
+
+        container.landlock_ruleset(policy);
     }
 
     fn create_container(temp_home: &str, host_fallback: bool) -> Result<Container, RunnerError> {
@@ -61,6 +97,15 @@ impl Runner {
             container.rootfs(VENDORED_ROOTFS)?;
         }
 
+        Self::configure_filesystem_policy(
+            &mut container,
+            if host_fallback {
+                Path::new("/")
+            } else {
+                Path::new(VENDORED_ROOTFS)
+            },
+        );
+
         container
             .tmpfsmount("/tmp")
             .devfsmount("/dev")
@@ -84,12 +129,21 @@ impl Runner {
         Ok(container)
     }
 
-    pub async fn new() -> Result<Self, RunnerError> {
+    pub fn validate_environment() -> Result<(), RunnerError> {
         let host_fallback = !Path::new(VENDORED_ROOTFS).is_dir();
 
-        if host_fallback && is_production() {
+        // A host-rootfs fallback is acceptable only for local debug builds;
+        // release binaries must never expose the host filesystem to jobs.
+        if host_fallback && (is_production() || !cfg!(debug_assertions)) {
             return Err(RunnerError::MissingRootfs(VENDORED_ROOTFS.to_owned()));
         }
+
+        Ok(())
+    }
+
+    pub async fn new() -> Result<Self, RunnerError> {
+        Self::validate_environment()?;
+        let host_fallback = !Path::new(VENDORED_ROOTFS).is_dir();
 
         let temp_home = Self::create_home().await?;
 
@@ -217,6 +271,8 @@ impl Runner {
         StderrAsync: Future<Output = Stderr> + Send + 'static,
         StderrFn: FnOnce(Option<AsyncOsReader>) -> StderrAsync,
     {
+        cmd.wait_timeout(COMMAND_WALL_TIME_SECS);
+
         let mut child = cmd
             .envs(BASE_ENV)
             .current_dir("/home")

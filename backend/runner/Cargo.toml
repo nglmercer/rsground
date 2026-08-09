@@ -10,7 +10,7 @@ test = true
 
 [dependencies]
 async-io = "2.4.1"
-hakoniwa = "1.7.2"
+hakoniwa = { version = "1.7.2", features = ["landlock"] }
 lsp-types = "0.97.0"
 thiserror.workspace = true
 tokio.workspace = true

@@ -4,7 +4,7 @@ use actix_ws as ws;
 use futures::StreamExt as _;
 
 use crate::collab::Document;
-use crate::project::AccessLevel;
+use crate::project::{AccessLevel, MAX_PROJECT_FILES, MAX_PROJECT_PASSWORD_BYTES};
 use crate::utils::{ArcStr, ToStream};
 use crate::ws::messages::{ClientMessage, ServerMessage, ServerMessageError};
 use crate::ws::ws_ext::SessionExt;
@@ -247,9 +247,23 @@ impl RgWebsocket {
 
                 if let Some(password) = password {
                     if password.is_empty() {
-                        project.password = None;
+                        project.set_password(None).map_err(|_| {
+                            ServerMessageError::InvalidOperation(
+                                "cannot clear project password".to_owned(),
+                            )
+                        })?;
                     } else {
-                        project.password = project.is_public.then_some(password);
+                        if password.len() > MAX_PROJECT_PASSWORD_BYTES {
+                            return Err(ServerMessageError::PasswordTooLong);
+                        }
+
+                        if project.is_public {
+                            project.set_password(Some(&password)).map_err(|_| {
+                                ServerMessageError::InvalidOperation(
+                                    "cannot set project password".to_owned(),
+                                )
+                            })?;
+                        }
                     }
                 }
 
@@ -279,6 +293,10 @@ impl RgWebsocket {
 
                 let project = self.app_state.get_project(self.project_id).await?;
                 let mut project = project.write().await;
+
+                if project.documents.len() >= MAX_PROJECT_FILES {
+                    return Err(ServerMessageError::ProjectFileLimit);
+                }
 
                 if project.documents.contains_key(&file) {
                     return Err(ServerMessageError::FileAlreadyExists(file));

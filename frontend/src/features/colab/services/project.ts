@@ -127,11 +127,11 @@ export async function fetchProject(
   project_id: string,
   password = "",
 ): Promise<ProjectInfo> {
-  const query = password ? `?p=${encodeURIComponent(password)}` : "";
-  let res = await fetch(`${BACKEND_HOST}/project/${project_id}${query}`, {
+  let res = await fetch(`${BACKEND_HOST}/project/${project_id}`, {
     method: "GET",
     headers: {
       Authorization: `Bearer ${untrack(authInfo)?.jwt}`,
+      ...(password ? { "X-Project-Password": password } : {}),
     },
   });
 
