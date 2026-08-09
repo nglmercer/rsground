@@ -86,9 +86,10 @@ pub fn decode(token: impl AsRef<str>) -> Option<RgUserData> {
         &jsonwebtoken::DecodingKey::from_secret(JWT_SECRET.as_bytes()),
         &jsonwebtoken::Validation::default(),
     )
-    .inspect_err(|err| {
-        log::error!("Error al decodificar JWT: {err}");
-    })
+    // Expired/stale tokens are normal after a local backend restart (the
+    // development secret is intentionally ephemeral) and should not look
+    // like a server failure in the logs.
+    .inspect_err(|err| log::debug!("JWT rejected: {err}"))
     .ok()?;
 
     if Utc::now().timestamp() >= token_data.claims.exp {

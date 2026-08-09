@@ -3,8 +3,14 @@ import { getOwner, observable, Owner, runWithOwner, untrack } from "solid-js";
 import { authInfo } from "@features/auth/stores";
 import { projectInfo, setProjectInfo } from "@features/colab/stores";
 import { syncFiles } from "@features/file-explorer/services";
+import { showToast } from "@services/toast";
 import { BACKEND_HOST } from "@services";
-import { ProjectDefaults, ProjectInfoField, WebSocketConfig } from "@constants";
+import {
+  ProjectDefaults,
+  ProjectInfoField,
+  ToastKind,
+  WebSocketConfig,
+} from "@constants";
 
 import {
   clearWsQueue,
@@ -63,6 +69,13 @@ export function startWebsocket() {
 
     void import("@features/editor/services").then(({ openFile }) => {
       openFile(ProjectDefaults.MainFile);
+    });
+  }));
+
+  subs.push(onWsMessage(ServerMessageKind.Error, (msg) => {
+    void showToast(ToastKind.Error, {
+      titleText: "Workspace action failed",
+      text: msg.message,
     });
   }));
 }

@@ -16,13 +16,22 @@ import { OpSeq } from "frontend-wasm";
 import { DockviewConfig, EditingFileField, FilePath, Panel } from "@constants";
 
 let syncListenerStarted = false;
+const pendingFiles = new Set<string>();
 
 export async function openFile(filepath: string) {
   const id = `${Panel.FilePrefix}${filepath}`;
   const filename = filepath.split(FilePath.Separator).pop();
+  const api = untrack(dockview);
 
-  if (!untrack(dockview).getPanel(id)) {
-    untrack(dockview).addPanel({
+  // The welcome message can arrive before the lazy panel bundle has mounted.
+  // Queue the request and let Panels flush it after Dockview is ready.
+  if (!api) {
+    pendingFiles.add(filepath);
+    return;
+  }
+
+  if (!api.getPanel(id)) {
+    api.addPanel({
       id,
       component: Panel.Code,
       title: filename,
@@ -32,6 +41,13 @@ export async function openFile(filepath: string) {
       },
     });
   }
+}
+
+export function flushPendingFiles() {
+  const files = [...pendingFiles];
+  pendingFiles.clear();
+
+  for (const file of files) void openFile(file);
 }
 
 export function startReceivingSync() {

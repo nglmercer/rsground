@@ -6,6 +6,7 @@ import {
 } from "dockview-core";
 
 import { setDockview } from "../stores";
+import { flushPendingFiles } from "@features/editor/services";
 import { CodePanel } from "./CodePanel";
 import { OutputPanel } from "./OutputPanel";
 import { DockviewConfig, Panel } from "@constants";
@@ -67,6 +68,8 @@ export function Panels() {
     minimumHeight: DockviewConfig.OutputMinimumHeight,
     position: { direction: DockviewConfig.OutputDirection },
   });
+
+  flushPendingFiles();
 
   return element;
 }

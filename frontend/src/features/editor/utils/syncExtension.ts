@@ -5,10 +5,15 @@ import { EditorSelection } from "@codemirror/state";
 import { ViewUpdate } from "@codemirror/view";
 
 import { authInfo } from "@features/auth/stores";
+import { projectAccess } from "@features/colab/stores";
 import { FileNode } from "@features/file-explorer/types";
 import { onWsMessage, sendMessage } from "@features/ws/services";
 import { wsSessionId } from "@features/ws/stores";
-import { ClientMessageKind, ServerMessageKind } from "@features/ws/types";
+import {
+  AccessLevel,
+  ClientMessageKind,
+  ServerMessageKind,
+} from "@features/ws/types";
 
 import { Cursor } from "../types";
 import {
@@ -36,6 +41,10 @@ function pendingChanges(file: string): PendingChanges {
     pendingByFile.set(file, pending);
   }
   return pending;
+}
+
+function canEdit() {
+  return untrack(projectAccess) === AccessLevel.Editor;
 }
 
 export function syncExtension(file: FileNode) {
@@ -73,11 +82,15 @@ export function syncExtensionListener(view: EditorView, file: string) {
           pending.accumulated = null;
 
           if (pending.outstanding) {
-            sendMessage(ClientMessageKind.Sync, {
-              file,
-              revision: new_revision,
-              actions: JSON.parse(pending.outstanding.to_string()),
-            });
+            if (canEdit()) {
+              sendMessage(ClientMessageKind.Sync, {
+                file,
+                revision: new_revision,
+                actions: JSON.parse(pending.outstanding.to_string()),
+              });
+            } else {
+              pending.outstanding = null;
+            }
           }
         } else {
           let opSeq = OpSeq.from_str(JSON.stringify(operation));
@@ -129,6 +142,8 @@ function anyEventHandler(file: FileNode) {
   const pending = pendingChanges(file.fullPath);
   let lastCursors: EditorSelection;
   const handleCursor = (selection: EditorSelection) => {
+    if (!canEdit()) return;
+
     if (lastCursors && selection.eq(lastCursors)) return;
     lastCursors = selection;
 
@@ -143,6 +158,8 @@ function anyEventHandler(file: FileNode) {
   };
 
   const handleOps = (update: ViewUpdate) => {
+    if (!canEdit()) return;
+
     let buffer = OpSeq.new();
     const oldContent = update.startState.doc.toString();
     const contentLength = unicodeLength(oldContent);

@@ -1,7 +1,12 @@
 import { For } from "solid-js/web";
 
 import { onWsMessage, sendMessage } from "@features/ws/services";
-import { ClientMessageKind, ServerMessageKind } from "@features/ws/types";
+import { projectAccess } from "@features/colab/stores";
+import {
+  AccessLevel,
+  ClientMessageKind,
+  ServerMessageKind,
+} from "@features/ws/types";
 import { PlayIcon } from "@icons/Play";
 import { SkullIcon } from "@icons/Skull";
 
@@ -18,6 +23,7 @@ export function OutputPanel() {
   let contentRef: HTMLDivElement;
 
   let [exitCode, setExitCode] = createSignal<number | null>(null);
+  const canEdit = () => projectAccess() === AccessLevel.Editor;
 
   onWsMessage(ServerMessageKind.SyncOutputStart, () => {
     setOutputPanel([]);
@@ -59,6 +65,8 @@ export function OutputPanel() {
             class={`${styles.action} ${styles.action_play}`}
             aria-label="Run code"
             title="Run code"
+            disabled={!canEdit()}
+            aria-disabled={!canEdit()}
             onClick={() => sendMessage(ClientMessageKind.Execute, {})}
           >
             <PlayIcon aria-hidden="true" />
@@ -71,6 +79,8 @@ export function OutputPanel() {
             class={`${styles.action} ${styles.action_kill}`}
             aria-label="Kill program"
             title="Kill program"
+            disabled={!canEdit()}
+            aria-disabled={!canEdit()}
             onClick={() => sendMessage(ClientMessageKind.StopExecute, {})}
           >
             <SkullIcon aria-hidden="true" />

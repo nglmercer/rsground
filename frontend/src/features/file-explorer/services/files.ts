@@ -1,15 +1,22 @@
 import { batch } from "solid-js";
 import { unwrap } from "solid-js/store";
 
+import { projectAccess } from "@features/colab/stores";
 import { setCursorsFiles, setEditingFiles, setSyncFiles } from "@features/editor/stores";
 import { sendMessage } from "@features/ws/services";
-import { ClientMessageKind, DocumentInfo } from "@features/ws/types";
+import {
+  AccessLevel,
+  ClientMessageKind,
+  DocumentInfo,
+} from "@features/ws/types";
 import { EditingFileField } from "@constants";
 
 import { fileExplorer, setFileExplorer } from "../stores";
 import { mergeFiles } from "../utils";
 
 export function createNewFile(file: string) {
+  if (projectAccess() !== AccessLevel.Editor) return;
+
   sendMessage(ClientMessageKind.FileCreate, { file });
 }
 
