@@ -251,3 +251,43 @@ impl Project {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{Project, MAX_PROJECT_NAME_CHARS};
+
+    #[test]
+    fn accepts_safe_relative_file_paths() {
+        assert!(Project::is_valid_file_path("main.rs"));
+        assert!(Project::is_valid_file_path("src/lib.rs"));
+        assert!(Project::is_valid_file_path("nested/deep/file.txt"));
+    }
+
+    #[test]
+    fn rejects_unsafe_file_paths() {
+        assert!(!Project::is_valid_file_path(""));
+        assert!(!Project::is_valid_file_path("/etc/passwd"));
+        assert!(!Project::is_valid_file_path("../outside.rs"));
+        assert!(!Project::is_valid_file_path("src/../outside.rs"));
+        assert!(!Project::is_valid_file_path("src\0file.rs"));
+
+        let too_long = "a".repeat(super::MAX_FILE_PATH_BYTES + 1);
+        assert!(!Project::is_valid_file_path(&too_long));
+    }
+
+    #[test]
+    fn validates_project_names_by_trimmed_content_and_character_count() {
+        assert!(Project::is_valid_name("Project"));
+        assert!(Project::is_valid_name("  Project  "));
+        assert!(Project::is_valid_name("日本語"));
+
+        assert!(!Project::is_valid_name(""));
+        assert!(!Project::is_valid_name("   "));
+        assert!(!Project::is_valid_name("line\nbreak"));
+
+        let max_name = "a".repeat(MAX_PROJECT_NAME_CHARS);
+        let too_long = "a".repeat(MAX_PROJECT_NAME_CHARS + 1);
+        assert!(Project::is_valid_name(&max_name));
+        assert!(!Project::is_valid_name(&too_long));
+    }
+}

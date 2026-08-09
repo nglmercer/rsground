@@ -108,3 +108,66 @@ pub fn get_user_info(req: &HttpRequest) -> Result<RgUserData, HttpErrors> {
     let token = get_auth_token(req).ok_or_else(|| HttpErrors::NoTokenProvided)?;
     decode(token).ok_or(HttpErrors::InvalidJWT)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{decode, encode, get_auth_token, get_user_info, RgUserData};
+    use crate::constants::http;
+    use crate::http_errors::HttpErrors;
+    use actix_web::test::TestRequest;
+    use chrono::Utc;
+
+    #[test]
+    fn round_trips_user_data_and_bearer_headers() {
+        let data = RgUserData::new("user-id".into(), "Ada".into(), true);
+        let token = encode(data).expect("test JWT should encode");
+        let decoded = decode(&token).expect("test JWT should decode");
+
+        assert_eq!(decoded.id.as_ref(), "user-id");
+        assert_eq!(decoded.name.as_ref(), "Ada");
+        assert!(decoded.is_guest);
+
+        let request = TestRequest::default()
+            .insert_header((
+                http::AUTHORIZATION_HEADER,
+                format!("{}{}", http::BEARER_PREFIX, token),
+            ))
+            .to_http_request();
+        assert_eq!(get_auth_token(&request), Some(token.as_str()));
+        assert_eq!(get_user_info(&request).unwrap().id.as_ref(), "user-id");
+    }
+
+    #[test]
+    fn rejects_missing_invalid_and_expired_tokens() {
+        let missing = TestRequest::default().to_http_request();
+        assert!(matches!(
+            get_user_info(&missing),
+            Err(HttpErrors::NoTokenProvided)
+        ));
+
+        let invalid = TestRequest::default()
+            .insert_header((
+                http::AUTHORIZATION_HEADER,
+                format!("{}not-a-jwt", http::BEARER_PREFIX),
+            ))
+            .to_http_request();
+        assert!(matches!(
+            get_user_info(&invalid),
+            Err(HttpErrors::InvalidJWT)
+        ));
+
+        let wrong_scheme = TestRequest::default()
+            .insert_header((http::AUTHORIZATION_HEADER, "Basic not-a-jwt"))
+            .to_http_request();
+        assert!(get_auth_token(&wrong_scheme).is_none());
+
+        let expired = RgUserData {
+            id: "expired".into(),
+            name: "Expired".into(),
+            is_guest: true,
+            exp: Utc::now().timestamp() - 1,
+        };
+        let token = encode(expired).expect("expired JWT should still encode");
+        assert!(decode(token).is_none());
+    }
+}

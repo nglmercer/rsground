@@ -30,3 +30,48 @@ pub fn parse_protocol_header(req: &HttpRequest) -> Result<(Vec<String>, KeyValue
 
     Ok((protocols, key_value))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::parse_protocol_header;
+    use crate::constants::http;
+    use crate::http_errors::HttpErrors;
+    use actix_web::test::TestRequest;
+
+    #[test]
+    fn parses_protocols_and_key_value_tokens() {
+        let request = TestRequest::default()
+            .insert_header((
+                http::SEC_WEBSOCKET_PROTOCOL_HEADER,
+                "auth.jwt, password.secret, ping",
+            ))
+            .to_http_request();
+
+        let (protocols, key_values) = parse_protocol_header(&request).unwrap();
+        assert_eq!(protocols, vec!["ping"]);
+        assert_eq!(
+            key_values,
+            vec![
+                ("auth".to_owned(), "jwt".to_owned()),
+                ("password".to_owned(), "secret".to_owned()),
+            ]
+        );
+    }
+
+    #[test]
+    fn rejects_missing_or_malformed_tokens() {
+        let missing = TestRequest::default().to_http_request();
+        assert!(matches!(
+            parse_protocol_header(&missing),
+            Err(HttpErrors::NoTokenProvided)
+        ));
+
+        let malformed = TestRequest::default()
+            .insert_header((http::SEC_WEBSOCKET_PROTOCOL_HEADER, "auth."))
+            .to_http_request();
+        assert!(matches!(
+            parse_protocol_header(&malformed),
+            Err(HttpErrors::NoTokenProvided)
+        ));
+    }
+}

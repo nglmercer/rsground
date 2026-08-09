@@ -248,24 +248,7 @@ impl Runner {
     }
 
     fn relative_home_path(&self, path: impl AsRef<Path>) -> io::Result<PathBuf> {
-        let path = path.as_ref();
-
-        if path.as_os_str().is_empty()
-            || path.is_absolute()
-            || path.components().any(|component| {
-                matches!(
-                    component,
-                    Component::ParentDir | Component::RootDir | Component::Prefix(_)
-                )
-            })
-        {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "runner paths must be relative and must not contain '..'",
-            ));
-        }
-
-        Ok(self.temp_home.join(path))
+        relative_home_path(&self.temp_home, path)
     }
 
     pub async fn create_file(
@@ -542,9 +525,60 @@ fn is_production() -> bool {
     })
 }
 
+fn relative_home_path(base: &Path, path: impl AsRef<Path>) -> io::Result<PathBuf> {
+    let path = path.as_ref();
+
+    if path.as_os_str().is_empty()
+        || path.is_absolute()
+        || path.components().any(|component| {
+            matches!(
+                component,
+                Component::ParentDir | Component::RootDir | Component::Prefix(_)
+            )
+        })
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "runner paths must be relative and must not contain '..'",
+        ));
+    }
+
+    Ok(base.join(path))
+}
+
 impl Drop for Runner {
     fn drop(&mut self) {
         _ = std::fs::remove_dir_all(&self.temp_home)
             .inspect_err(|err| eprintln!("cannot delete temp home: {err}"));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::relative_home_path;
+    use std::path::Path;
+
+    #[test]
+    fn confines_runner_paths_to_the_project_home() {
+        let base = Path::new("/tmp/rsground-runner-home");
+        assert_eq!(
+            relative_home_path(base, "src/main.rs").unwrap(),
+            base.join("src/main.rs")
+        );
+        assert_eq!(
+            relative_home_path(base, "./src/main.rs").unwrap(),
+            base.join("./src/main.rs")
+        );
+    }
+
+    #[test]
+    fn rejects_empty_absolute_and_parent_paths() {
+        let base = Path::new("/tmp/rsground-runner-home");
+        for path in ["", "/etc/passwd", "../outside", "src/../../outside"] {
+            assert!(
+                relative_home_path(base, path).is_err(),
+                "path should be rejected: {path:?}"
+            );
+        }
     }
 }
