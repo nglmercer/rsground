@@ -449,6 +449,21 @@ impl RgWebsocket {
                     files: project.get_files().await,
                 })
             }
+            ClientMessage::Lsp { message } => {
+                let message = serde_json::to_string(&message).map_err(|error| {
+                    ServerMessageError::InvalidOperation(format!(
+                        "cannot serialize language-server message: {error}"
+                    ))
+                })?;
+
+                self.send_lsp(message).await.map_err(|error| {
+                    ServerMessageError::InvalidOperation(format!(
+                        "language server unavailable: {error}"
+                    ))
+                })?;
+
+                Err(ServerMessageError::None)
+            }
         }
     }
 }

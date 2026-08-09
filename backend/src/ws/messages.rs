@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use operational_transform::OperationSeq;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use uuid::Uuid;
 
 use crate::collab::{Document, DocumentInfo, UserOperation};
@@ -39,6 +40,9 @@ pub enum ClientMessage {
         cursors: Vec<(u32, u32)>,
     },
     SyncFiles,
+    Lsp {
+        message: Value,
+    },
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -75,6 +79,9 @@ pub enum ServerMessage {
     SyncCursors {
         file: ArcStr,
         cursors: HashMap<ArcStr, Vec<(u32, u32)>>,
+    },
+    Lsp {
+        message: Value,
     },
     SyncOutput {
         channel: OutputChannel,

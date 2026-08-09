@@ -3,7 +3,8 @@ pub mod error;
 pub mod hakoniwa_ext;
 
 use error::RunnerError;
-use hakoniwa::{Child, Command, Container, ExitStatus, Output};
+pub use hakoniwa::Child;
+use hakoniwa::{Command, Container, ExitStatus, Output};
 use hakoniwa_ext::AsyncOsReader;
 use std::future::Future;
 pub use std::io::{PipeReader, PipeWriter};
@@ -416,7 +417,14 @@ impl Runner {
             .spawn()
     }
 
-    pub fn start_rls(&mut self) -> hakoniwa::Result<(Child, PipeWriter, PipeReader, PipeReader)> {
+    /// Start the Rust Analyzer language server inside this runner's sandbox.
+    ///
+    /// The old `start_rls` name is kept as a compatibility wrapper because
+    /// the runner tests and downstream callers used it before the project
+    /// switched to Rust Analyzer.
+    pub fn start_rust_analyzer(
+        &self,
+    ) -> hakoniwa::Result<(Child, PipeWriter, PipeReader, PipeReader)> {
         let mut child = self.container.command(if self.host_fallback {
             runner_constants::HOST_RUST_ANALYZER
         } else {
@@ -435,6 +443,10 @@ impl Runner {
         let stderr = child.stderr.take().expect("Needs communication >:(");
 
         Ok((child, stdin, stdout, stderr))
+    }
+
+    pub fn start_rls(&self) -> hakoniwa::Result<(Child, PipeWriter, PipeReader, PipeReader)> {
+        self.start_rust_analyzer()
     }
 
     pub fn cmd(

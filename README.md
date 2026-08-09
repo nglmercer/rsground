@@ -31,6 +31,10 @@ pnpm --dir frontend dev
 
 Then open the URL printed by Vite, normally `http://localhost:3000`.
 
+Rust editor features are provided by Rust Analyzer over the backend WebSocket
+bridge. Local development needs `rust-analyzer` and the `rust-src` component
+in the active Rust toolchain; a deployed runner image must include both.
+
 The vendored runner image is used when `backend/runner/lxc_rootfs` exists. A
 fresh development checkout falls back to the host rootfs inside hakoniwa's
 namespaces so the playground can start immediately; install the vendored

@@ -129,3 +129,9 @@ body
   +themed_var(surface2-background, var(--colors-primary-100), var(--colors-gray-950))
   +themed_var(surface2-foreground, #000, #FFF)
   --surface2-focused: var(--colors-primary-800)
+
+@media (max-width: 750px)
+  body
+    position: relative
+    grid-template-columns: minmax(0, 1fr)
+    grid-template-rows: minmax(0, 1fr)

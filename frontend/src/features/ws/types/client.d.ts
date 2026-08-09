@@ -12,6 +12,7 @@ export enum ClientMessageKind {
   Sync = "sync",
   SyncCursor = "sync_cursor",
   SyncFiles = "sync_files",
+  Lsp = "lsp",
 }
 
 export type ClientMessage<S extends ClientMessageKind = ClientMessageKind> = {
@@ -53,5 +54,9 @@ export type ClientMessage<S extends ClientMessageKind = ClientMessageKind> = {
   };
   [ClientMessageKind.SyncFiles]: {
     action: ClientMessageKind.SyncFiles;
+  };
+  [ClientMessageKind.Lsp]: {
+    action: ClientMessageKind.Lsp;
+    message: Record<string, unknown>;
   };
 }[S];

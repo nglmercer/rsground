@@ -19,6 +19,7 @@ import { AccessLevel, ServerMessageKind } from "@features/ws/types";
 import { onWsMessage } from "@features/ws/services";
 
 import { rustExtensions, syncExtension, syncExtensionListener } from "../utils";
+import { rustAnalyzerExtensions } from "../services/lsp";
 import {
   cursorsFiles,
   setCursorsFiles,
@@ -28,7 +29,7 @@ import {
 import { Cursor } from "../types";
 
 import styles from "./CodeEditor.module.sass";
-import { EditingFileField } from "@constants";
+import { EditingFileField, FilePath } from "@constants";
 
 export interface CodeEditorProps {
   /** full-path of the target file to edit */
@@ -108,6 +109,9 @@ export function CodeEditor(props: CodeEditorProps) {
       value={syncFiles[props.file]}
       extensions={[
         ...rustExtensions(styles),
+        ...(file.data.fullPath.endsWith(FilePath.RustExtension)
+          ? rustAnalyzerExtensions(file.data.fullPath)
+          : []),
         readOnly.of([]),
         cursors.of(EditorView.decorations.of(Decoration.set([]))),
         syncExtension(file.data),

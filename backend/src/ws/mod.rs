@@ -1,4 +1,5 @@
 pub mod handlers;
+pub mod lsp;
 pub mod messages;
 pub mod routes;
 pub mod utils;

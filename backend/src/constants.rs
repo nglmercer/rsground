@@ -77,6 +77,16 @@ pub mod auth {
 
 pub mod project {
     pub const MAIN_FILE: &str = "main.rs";
+    pub const ANALYZER_CARGO_FILE: &str = "Cargo.toml";
+    pub const ANALYZER_CARGO_SOURCE: &str = r#"[package]
+name = "rsground-playground"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "main"
+path = "main.rs"
+"#;
     pub const MAIN_EXECUTABLE: &str = "main";
     pub const RUNNER_MAIN_FILE: &str = "/home/main.rs";
     pub const RUNNER_MAIN_EXECUTABLE: &str = "/home/main";
@@ -149,6 +159,7 @@ pub mod ws_action {
     pub const EXECUTE: &str = "execute";
     pub const FILE_CREATE: &str = "file_create";
     pub const FILE_DELETE: &str = "file_delete";
+    pub const LSP: &str = "lsp";
     pub const PERMIT_ACCESS: &str = "permit_access";
     pub const PROJECT_CONFIG: &str = "project_config";
     pub const PROJECT_FILES: &str = "project_files";

@@ -52,6 +52,13 @@ impl Project {
 
         let (runner, execution, executer) = ProjectExecuter::start(id, broadcast.clone()).await?;
 
+        runner
+            .create_file(
+                project_constants::ANALYZER_CARGO_FILE,
+                project_constants::ANALYZER_CARGO_SOURCE,
+            )
+            .await?;
+
         Ok(Self {
             id,
             name,

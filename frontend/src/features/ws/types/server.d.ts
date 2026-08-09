@@ -14,6 +14,7 @@ export enum ServerMessageKind {
   SyncOutputStart = "sync_output_start",
   SyncOutputEnd = "sync_output_end",
   SyncCursors = "sync_cursors",
+  Lsp = "lsp",
   Welcome = "welcome",
 }
 
@@ -68,6 +69,10 @@ export type ServerMessage<S extends ServerMessageKind = ServerMessageKind> = {
     action: ServerMessageKind.SyncCursors;
     file: string;
     cursors: Record<string, Array<RsCursor>>;
+  };
+  [ServerMessageKind.Lsp]: {
+    action: ServerMessageKind.Lsp;
+    message: Record<string, unknown>;
   };
   [ServerMessageKind.Welcome]: {
     action: ServerMessageKind.Welcome;

@@ -50,7 +50,9 @@
     height: auto
     max-height: none
     padding: 0.375rem 0.5rem
-    position: relative
+    position: absolute
+    top: 0
+    left: 0
     z-index: 2
     overflow: visible
 
@@ -84,3 +86,7 @@
     min-width: 0
     min-height: 0
     height: auto
+
+  .container[data-closed] + div
+    width: calc(100% - $sidebar_buttons_width - $sidebar_buttons_gap)
+    margin-left: calc($sidebar_buttons_width + $sidebar_buttons_gap)
