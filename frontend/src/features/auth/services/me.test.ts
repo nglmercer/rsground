@@ -1,0 +1,46 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("@services", () => ({
+  BACKEND_HOST: "http://backend.test",
+}));
+
+import { ApiPath, HttpHeader, HttpMethod } from "@constants";
+import { fetchMe } from "./me";
+
+describe("fetchMe", () => {
+  const fetchMock = vi.fn<typeof fetch>();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  it("fetches the current user with a bearer token", async () => {
+    const authInfo = {
+      jwt: "jwt",
+      id: "user-id",
+      is_guest: true,
+      name: "Ada",
+    };
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify(authInfo), { status: 200 }),
+    );
+
+    await expect(fetchMe("jwt")).resolves.toEqual(authInfo);
+    expect(fetchMock).toHaveBeenCalledWith(
+      `http://backend.test${ApiPath.AuthMe}`,
+      {
+        method: HttpMethod.Get,
+        headers: {
+          [HttpHeader.Authorization]: "Bearer jwt",
+        },
+      },
+    );
+  });
+
+  it("returns null for an expired or invalid session", async () => {
+    fetchMock.mockResolvedValue(new Response("expired", { status: 401 }));
+
+    await expect(fetchMe("expired-jwt")).resolves.toBeNull();
+  });
+});

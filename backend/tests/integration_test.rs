@@ -223,3 +223,65 @@ async fn test_project_password_is_not_disclosed_body() {
         Some(true)
     );
 }
+
+#[actix_rt::test]
+async fn test_auth_rejects_invalid_guest_names_and_exposes_me() {
+    common::with_test_server(test_auth_rejects_invalid_guest_names_and_exposes_me_body).await;
+}
+
+async fn test_auth_rejects_invalid_guest_names_and_exposes_me_body() {
+    request!([POST] common::route::AUTH_GUEST,
+        send { (common::json::GUEST_NAME): "   " },
+        expect BAD_REQUEST
+    );
+
+    let too_long_name = "a".repeat(backend::constants::limits::MAX_GUEST_NAME_CHARS + 1);
+    request!([POST] common::route::AUTH_GUEST,
+        send { (common::json::GUEST_NAME): too_long_name },
+        expect BAD_REQUEST
+    );
+
+    let (token, user_id) = login_as(common::USER_NAME).await;
+    let mut response = request!([GET] common::route::AUTH_ME,
+        as token,
+        send,
+        expect OK
+    );
+    let me = ::serde_json::from_slice::<::serde_json::Value>(&response.body().await.unwrap())
+        .expect("auth/me should return JSON");
+    assert_eq!(
+        me.get(common::json::ID).and_then(|value| value.as_str()),
+        Some(user_id.as_str())
+    );
+    assert_eq!(
+        me.get(common::json::IS_GUEST)
+            .and_then(|value| value.as_bool()),
+        Some(true)
+    );
+
+    let invalid = ::awc::Client::new()
+        .get(common::api_url(common::route::AUTH_ME))
+        .insert_header(common::auth_header("invalid-token"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(invalid.status(), awc::http::StatusCode::UNAUTHORIZED);
+}
+
+#[actix_rt::test]
+async fn test_project_name_validation() {
+    common::with_test_server(test_project_name_validation_body).await;
+}
+
+async fn test_project_name_validation_body() {
+    let (token, _) = login_as(common::OWNER_NAME).await;
+    let too_long_name = "a".repeat(backend::constants::limits::MAX_PROJECT_NAME_CHARS + 1);
+
+    let response = ::awc::Client::new()
+        .post(common::api_url(&format!("/create/{too_long_name}")))
+        .insert_header(common::auth_header(token))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), awc::http::StatusCode::BAD_REQUEST);
+}

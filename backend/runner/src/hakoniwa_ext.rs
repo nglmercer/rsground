@@ -53,3 +53,33 @@ impl ops::Deref for AsyncOsReader {
         self.0.get_ref()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::AsyncOsReader;
+    use std::io::{pipe, Write};
+
+    #[tokio::test]
+    async fn reads_all_bytes_until_pipe_closes() {
+        let (reader, mut writer) = pipe().expect("pipe should be created");
+        let expected = b"runner output".to_vec();
+        let to_write = expected.clone();
+
+        let writer_task = tokio::task::spawn_blocking(move || {
+            writer
+                .write_all(&to_write)
+                .expect("pipe write should succeed");
+        });
+
+        let mut reader = AsyncOsReader::from(reader);
+        let mut output = Vec::new();
+        let bytes_read = reader
+            .read_to_end(&mut output)
+            .await
+            .expect("pipe read should succeed");
+
+        writer_task.await.expect("writer task should finish");
+        assert_eq!(bytes_read, expected.len());
+        assert_eq!(output, expected);
+    }
+}

@@ -27,10 +27,11 @@ pub static JWT_SECRET: LazyLock<String> = LazyLock::new(|| {
 const JWT_EXP: TimeDelta = Duration::hours(auth::JWT_EXPIRATION_HOURS);
 
 pub(crate) fn validate_deployment_secret() -> Result<(), String> {
-    let Some(secret) = std::env::var(env::JWT_SECRET)
-        .ok()
-        .filter(|secret| !secret.trim().is_empty())
-    else {
+    validate_secret(std::env::var(env::JWT_SECRET).ok().as_deref())
+}
+
+fn validate_secret(secret: Option<&str>) -> Result<(), String> {
+    let Some(secret) = secret.filter(|secret| !secret.trim().is_empty()) else {
         return Err(format!("{} must be set for deployment", env::JWT_SECRET));
     };
 
@@ -111,7 +112,7 @@ pub fn get_user_info(req: &HttpRequest) -> Result<RgUserData, HttpErrors> {
 
 #[cfg(test)]
 mod tests {
-    use super::{decode, encode, get_auth_token, get_user_info, RgUserData};
+    use super::{decode, encode, get_auth_token, get_user_info, validate_secret, RgUserData};
     use crate::constants::http;
     use crate::http_errors::HttpErrors;
     use actix_web::test::TestRequest;
@@ -169,5 +170,13 @@ mod tests {
         };
         let token = encode(expired).expect("expired JWT should still encode");
         assert!(decode(token).is_none());
+    }
+
+    #[test]
+    fn validates_deployment_secret_requirements_without_mutating_process_environment() {
+        assert!(validate_secret(None).is_err());
+        assert!(validate_secret(Some("   ")).is_err());
+        assert!(validate_secret(Some("too-short")).is_err());
+        assert!(validate_secret(Some(&"s".repeat(32))).is_ok());
     }
 }

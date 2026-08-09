@@ -16,12 +16,12 @@ impl AccessLevel {
         matches!(self, Self::ReadOnly | Self::Editor)
     }
 
-    #[expect(dead_code)]
+    #[cfg_attr(not(test), expect(dead_code))]
     pub fn is_readonly(&self) -> bool {
         matches!(self, Self::ReadOnly)
     }
 
-    #[expect(dead_code)]
+    #[cfg_attr(not(test), expect(dead_code))]
     pub fn is_editor(&self) -> bool {
         matches!(self, Self::Editor)
     }

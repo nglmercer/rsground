@@ -476,11 +476,7 @@ impl Runner {
 
     pub async fn patch_binary(&self, path: impl AsRef<str>) -> Result<Output, hakoniwa::Error> {
         let path = path.as_ref();
-        if !path.starts_with(runner_constants::HOME_PATH_PREFIX) || path.contains("..") {
-            return Err(hakoniwa::Error::UnError(
-                runner_constants::INVALID_BINARY_PATH.to_owned(),
-            ));
-        }
+        validate_binary_path(path)?;
 
         let patcher = if self.host_fallback {
             [runner_constants::PATCHELF, runner_constants::HOST_PATCHELF]
@@ -546,6 +542,16 @@ fn relative_home_path(base: &Path, path: impl AsRef<Path>) -> io::Result<PathBuf
     Ok(base.join(path))
 }
 
+fn validate_binary_path(path: &str) -> Result<(), hakoniwa::Error> {
+    if !path.starts_with(runner_constants::HOME_PATH_PREFIX) || path.contains("..") {
+        return Err(hakoniwa::Error::UnError(
+            runner_constants::INVALID_BINARY_PATH.to_owned(),
+        ));
+    }
+
+    Ok(())
+}
+
 impl Drop for Runner {
     fn drop(&mut self) {
         _ = std::fs::remove_dir_all(&self.temp_home)
@@ -555,7 +561,7 @@ impl Drop for Runner {
 
 #[cfg(test)]
 mod tests {
-    use super::relative_home_path;
+    use super::{relative_home_path, validate_binary_path};
     use std::path::Path;
 
     #[test]
@@ -580,5 +586,14 @@ mod tests {
                 "path should be rejected: {path:?}"
             );
         }
+    }
+
+    #[test]
+    fn validates_binary_paths_before_starting_the_patcher() {
+        assert!(validate_binary_path("/home/main").is_ok());
+        assert!(validate_binary_path("/home/project/bin").is_ok());
+        assert!(validate_binary_path("main").is_err());
+        assert!(validate_binary_path("/tmp/main").is_err());
+        assert!(validate_binary_path("/home/../main").is_err());
     }
 }

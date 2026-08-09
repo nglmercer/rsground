@@ -87,9 +87,25 @@ impl ProjectManager {
 }
 
 fn configured_max_projects() -> usize {
-    std::env::var(env::MAX_PROJECTS)
-        .ok()
+    configured_limit(std::env::var(env::MAX_PROJECTS).ok().as_deref())
+}
+
+fn configured_limit(value: Option<&str>) -> usize {
+    value
         .and_then(|value| value.parse().ok())
         .filter(|limit: &usize| *limit > 0)
         .unwrap_or(DEFAULT_MAX_PROJECTS)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{configured_limit, DEFAULT_MAX_PROJECTS};
+
+    #[test]
+    fn uses_only_positive_numeric_project_limits() {
+        assert_eq!(configured_limit(None), DEFAULT_MAX_PROJECTS);
+        assert_eq!(configured_limit(Some("invalid")), DEFAULT_MAX_PROJECTS);
+        assert_eq!(configured_limit(Some("0")), DEFAULT_MAX_PROJECTS);
+        assert_eq!(configured_limit(Some("12")), 12);
+    }
 }
