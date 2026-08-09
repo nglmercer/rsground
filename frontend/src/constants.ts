@@ -89,6 +89,9 @@ export const WebSocketConfig = {
   Ping: "ping",
   HeartbeatIntervalMs: 5_000,
   AbnormalClosureCode: 1006,
+  GoingAwayCode: 1001,
+  ServiceRestartCode: 1012,
+  TryAgainLaterCode: 1013,
   AuthProtocolPrefix: "auth.",
 } as const;
 

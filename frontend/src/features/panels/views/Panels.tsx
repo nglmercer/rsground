@@ -1,4 +1,4 @@
-import { getOwner, runWithOwner } from "solid-js";
+import { render } from "solid-js/web";
 import {
   DockviewComponent,
   DockviewTheme,
@@ -17,7 +17,6 @@ import "./dockview.sass";
 import styles from "./Panels.module.sass";
 
 export function Panels() {
-  const owner = getOwner();
   const element = <div class={styles.container} /> as HTMLElement;
 
   const dockview = new DockviewComponent(element, {
@@ -32,15 +31,23 @@ export function Panels() {
     singleTabMode: DockviewConfig.SingleTabMode,
 
     createComponent(options) {
-      const element = (options.name == Panel.Code
-        ? runWithOwner(owner, () => CodePanel(options.id))
-        : options.name == Panel.Output
-        ? OutputPanel()
-        : <span>Esto es canallesco</span>) as HTMLElement;
+      const element = document.createElement("div");
+      const dispose = render(
+        () =>
+          options.name == Panel.Code ? (
+            <CodePanel id={options.id} />
+          ) : options.name == Panel.Output ? (
+            <OutputPanel />
+          ) : (
+            <span>Esto es canallesco</span>
+          ),
+        element,
+      );
 
       return {
         element,
         init(_params) {},
+        dispose,
       } satisfies IContentRenderer;
     },
   });

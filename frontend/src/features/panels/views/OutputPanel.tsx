@@ -14,7 +14,7 @@ import { ansiToHtml } from "../utils";
 import { outputPanel, setOutputPanel } from "../stores";
 
 import styles from "./OutputPanel.module.sass";
-import { createSignal, onMount, Show } from "solid-js";
+import { createSignal, onCleanup, onMount, Show } from "solid-js";
 import { ProcessExitCode, UiValue } from "@constants";
 
 const decoder = new TextDecoder();
@@ -25,13 +25,13 @@ export function OutputPanel() {
   let [exitCode, setExitCode] = createSignal<number | null>(null);
   const canEdit = () => projectAccess() === AccessLevel.Editor;
 
-  onWsMessage(ServerMessageKind.SyncOutputStart, () => {
+  const unsubscribeOutputStart = onWsMessage(ServerMessageKind.SyncOutputStart, () => {
     setOutputPanel([]);
     setExitCode(null);
     decoder.decode();
   });
 
-  onWsMessage(ServerMessageKind.SyncOutput, (msg) => {
+  const unsubscribeOutput = onWsMessage(ServerMessageKind.SyncOutput, (msg) => {
     const decoded = decoder.decode(new Uint8Array(msg.buf), { stream: true });
 
     if (
@@ -44,7 +44,7 @@ export function OutputPanel() {
     }
   });
 
-  onWsMessage(ServerMessageKind.SyncOutputEnd, (msg) => {
+  const unsubscribeOutputEnd = onWsMessage(ServerMessageKind.SyncOutputEnd, (msg) => {
     const remainder = decoder.decode();
     if (remainder) {
       if (outputPanel.length === 0) {
@@ -54,6 +54,12 @@ export function OutputPanel() {
       }
     }
     setExitCode(msg.exit_code)
+  });
+
+  onCleanup(() => {
+    unsubscribeOutputStart();
+    unsubscribeOutput();
+    unsubscribeOutputEnd();
   });
 
   return (

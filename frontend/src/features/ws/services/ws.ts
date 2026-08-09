@@ -28,9 +28,13 @@ import {
 } from "../types";
 
 let wsOwner: Owner;
+let activeSocket: WebSocket | null = null;
+const expectedCloseSessions = new WeakSet<WebSocket>();
 
 let subs: (() => void)[] = [];
 export function startWebsocket() {
+  closeActiveSocket();
+
   subs.forEach((sub) => sub());
   subs = [];
 
@@ -38,10 +42,12 @@ export function startWebsocket() {
     observable(() => [authInfo(), projectInfo.id] as const).subscribe(
       ([authInfo, projectId]) => {
         if (!!authInfo?.jwt && !!projectId) {
-          wsSession()?.close();
+          closeActiveSocket();
           connectWs(authInfo.jwt, projectId);
         } else {
+          closeActiveSocket();
           setWsSession(null);
+          setWsSessionId(null);
         }
       },
     ).unsubscribe,
@@ -50,10 +56,7 @@ export function startWebsocket() {
   subs.push(
     observable(wsSession).subscribe((wsSession) => {
       if (wsSession) {
-        for (const msg of wsQueue) {
-          wsSession.send(JSON.stringify(msg));
-        }
-        clearWsQueue();
+        flushWsQueue(wsSession);
       }
     }).unsubscribe,
   );
@@ -93,40 +96,102 @@ function notifyWebSocketState(state: WebSocketState) {
   for (const cb of ws_state_callbacks) cb(state);
 }
 
+function closeActiveSocket() {
+  const session = activeSocket;
+  if (!session) return;
+
+  expectedCloseSessions.add(session);
+  activeSocket = null;
+
+  if (wsSession() === session) {
+    setWsSession(null);
+    setWsSessionId(null);
+    notifyWebSocketState("closed");
+  }
+
+  if (
+    session.readyState === WebSocket.CONNECTING ||
+    session.readyState === WebSocket.OPEN
+  ) {
+    session.close(1000, "replaced");
+  }
+}
+
+function flushWsQueue(session: WebSocket) {
+  if (session.readyState !== WebSocket.OPEN || wsQueue.length === 0) return;
+
+  const pending = wsQueue.slice();
+  clearWsQueue();
+
+  for (let index = 0; index < pending.length; index++) {
+    if (session.readyState !== WebSocket.OPEN) {
+      wsQueue.unshift(...pending.slice(index));
+      return;
+    }
+
+    try {
+      session.send(JSON.stringify(pending[index]));
+    } catch {
+      wsQueue.unshift(...pending.slice(index));
+      return;
+    }
+  }
+}
+
 function connectWs(jwt: string, projectId: string) {
   const session = new WebSocket(
     wsUrl + projectId,
     [`${WebSocketConfig.AuthProtocolPrefix}${jwt}`],
   );
+  activeSocket = session;
 
-  let interval: NodeJS.Timeout | undefined;
-  let isCurrentSession = false;
+  let interval: ReturnType<typeof setInterval> | undefined;
   let closedNotified = false;
 
   const markClosed = () => {
-    if (closedNotified) return;
+    const expected = expectedCloseSessions.has(session);
+    const current = activeSocket === session;
+
+    if (closedNotified) {
+      return { expected, current: false, first: false };
+    }
+
     closedNotified = true;
     if (interval) clearInterval(interval);
 
     // A stale socket must not tear down a newer project connection.
-    if (!isCurrentSession || wsSession() !== session) return;
+    if (current) activeSocket = null;
 
-    setWsSession(null);
-    notifyWebSocketState("closed");
+    if (wsSession() === session) {
+      setWsSession(null);
+      setWsSessionId(null);
+      notifyWebSocketState("closed");
+    }
+
+    return { expected, current, first: true };
   };
 
   session.addEventListener("open", () => {
-    isCurrentSession = true;
+    if (
+      activeSocket !== session ||
+      expectedCloseSessions.has(session)
+    ) {
+      expectedCloseSessions.add(session);
+      session.close(1000, "replaced");
+      return;
+    }
+
     setWsSession(session);
     notifyWebSocketState("open");
 
     interval = setInterval(() => {
-      session.send(WebSocketConfig.Ping);
-    }, WebSocketConfig.HeartbeatIntervalMs)
+      if (session.readyState === WebSocket.OPEN) {
+        session.send(WebSocketConfig.Ping);
+      }
+    }, WebSocketConfig.HeartbeatIntervalMs);
   });
 
   session.addEventListener("message", (ev) => {
-    clearWsQueue();
     if (ev.data === WebSocketConfig.Ping) return;
     let data = JSON.parse(ev.data) as ServerMessage;
     console.debug("[WS] received:", data);
@@ -137,15 +202,30 @@ function connectWs(jwt: string, projectId: string) {
   });
 
   session.addEventListener("error", (ev) => {
-    markClosed();
-    console.error("Websocket error:", ev);
+    if (!expectedCloseSessions.has(session) && activeSocket === session) {
+      console.warn("[WS] WebSocket transport error; waiting for close", ev);
+    }
   });
 
   session.addEventListener("close", (ev) => {
-    markClosed();
-    console.error("Websocket closed:", ev);
+    const state = markClosed();
+    if (!state.first) return;
 
-    if (isCurrentSession && ev.code === WebSocketConfig.AbnormalClosureCode) {
+    const shouldReconnect =
+      state.current &&
+      !state.expected &&
+      (ev.code === WebSocketConfig.GoingAwayCode ||
+        ev.code === WebSocketConfig.AbnormalClosureCode ||
+        ev.code === WebSocketConfig.ServiceRestartCode ||
+        ev.code === WebSocketConfig.TryAgainLaterCode);
+
+    if (shouldReconnect) {
+      if (ev.code !== WebSocketConfig.GoingAwayCode) {
+        console.warn("[WS] reconnecting after websocket close", {
+          code: ev.code,
+          reason: ev.reason,
+        });
+      }
       startWebsocket();
     }
   });
@@ -215,10 +295,19 @@ export function sendMessage<A extends ClientMessageKind>(
   console.log("[WS] Sending message:", msg_action);
 
   const session = untrack(wsSession);
-  if (session) {
-    clearWsQueue();
-    wsQueue.push(msg_action);
-    session.send(JSON.stringify(msg_action));
+  if (session?.readyState === WebSocket.OPEN) {
+    flushWsQueue(session);
+
+    if (session.readyState !== WebSocket.OPEN) {
+      wsQueue.push(msg_action);
+      return;
+    }
+
+    try {
+      session.send(JSON.stringify(msg_action));
+    } catch {
+      wsQueue.push(msg_action);
+    }
   } else {
     wsQueue.push(msg_action);
   }

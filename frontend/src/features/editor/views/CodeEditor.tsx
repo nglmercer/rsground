@@ -94,7 +94,7 @@ export function CodeEditor(props: CodeEditorProps) {
     if (position != null) view.dispatch({ selection: { anchor: position } });
   };
 
-  onWsMessage(ServerMessageKind.SyncCursors, (msg) => {
+  const unsubscribeSyncCursors = onWsMessage(ServerMessageKind.SyncCursors, (msg) => {
     if (msg.file !== file_path) return;
 
     batch(() => {
@@ -103,6 +103,7 @@ export function CodeEditor(props: CodeEditorProps) {
       }
     });
   });
+  onCleanup(unsubscribeSyncCursors);
 
   createEffect(() => {
     if (!editor()) return;
