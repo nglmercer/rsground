@@ -1,2 +1,1 @@
-export const BACKEND_HOST =
-  import.meta.env.VITE_BACKEND_HOST || "http://localhost:8080";
+export { BACKEND_HOST } from "@constants";

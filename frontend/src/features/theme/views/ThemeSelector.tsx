@@ -6,6 +6,7 @@ import { SunIcon } from "@icons/Sun";
 
 import { setThemeMode, themeMode } from "../stores";
 import { ThemeMode } from "../types";
+import { ThemeSelectorConfig } from "@constants";
 
 import styles from "./ThemeSelector.module.sass";
 
@@ -37,7 +38,7 @@ function ThemeSelectorItem(props: ParentProps<ThemeSelectorItemProps>) {
     <label class={styles.item}>
       <input
         type="radio"
-        name="theme-selector"
+        name={ThemeSelectorConfig.InputName}
         checked={props.themeSelector(props.mode)}
         onChange={(ev) => {
           if (ev.currentTarget.checked) {

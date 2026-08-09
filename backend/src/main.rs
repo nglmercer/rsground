@@ -1,16 +1,20 @@
 use std::io;
 
 use actix_web::{App, HttpServer};
+use backend::constants::{defaults, env};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    env_logger::Builder::from_env(
+        env_logger::Env::default().default_filter_or(defaults::LOG_FILTER),
+    )
+    .init();
     dotenvy::dotenv().ok();
 
     log::info!("Iniciando servidor Actix-Web");
 
     let bind_address =
-        std::env::var("RSGROUND_BIND").unwrap_or_else(|_| "127.0.0.1:8080".to_owned());
+        std::env::var(env::BIND).unwrap_or_else(|_| defaults::BIND_ADDRESS.to_owned());
     backend::validate_configuration(&bind_address)
         .map_err(|message| io::Error::new(io::ErrorKind::InvalidInput, message))?;
     backend::initialize();

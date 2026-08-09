@@ -5,6 +5,7 @@ use serde::Serialize;
 use tokio::sync::{Notify, RwLock, RwLockWriteGuard};
 
 use crate::collab::ot::transform_index;
+use crate::constants::limits;
 use crate::utils::{ArcStr, AsyncInto};
 
 use super::UserOperation;
@@ -129,10 +130,11 @@ impl Document {
                     .map_err(|err| err.to_string())?
                     .0;
             }
-            if operation.target_len() > 256 * 1024 {
+            if operation.target_len() > limits::MAX_DOCUMENT_BYTES {
                 return Err(format!(
-                    "target length {} is greater than 256 KiB maximum",
-                    operation.target_len()
+                    "target length {} is greater than {} KiB maximum",
+                    operation.target_len(),
+                    limits::MAX_DOCUMENT_BYTES / 1024,
                 ));
             }
 

@@ -4,6 +4,7 @@ use actix_ws as ws;
 use futures::StreamExt as _;
 
 use crate::collab::Document;
+use crate::constants::websocket;
 use crate::project::{AccessLevel, MAX_PROJECT_FILES, MAX_PROJECT_PASSWORD_BYTES};
 use crate::utils::{ArcStr, ToStream};
 use crate::ws::messages::{ClientMessage, ServerMessage, ServerMessageError};
@@ -48,7 +49,7 @@ impl RgWebsocket {
         self.sync_docs = (&project.documents)
             .to_stream()
             .map(async |(k, v)| (k.clone(), (v.clone(), v.revision().await)))
-            .buffer_unordered(10)
+            .buffer_unordered(websocket::DOCUMENT_CONCURRENCY)
             .collect()
             .await;
 
@@ -187,7 +188,7 @@ impl RgWebsocket {
 
         match msg {
             ws::AggregatedMessage::Text(text) => {
-                if text == "ping" {
+                if text == websocket::PING {
                     return;
                 }
 

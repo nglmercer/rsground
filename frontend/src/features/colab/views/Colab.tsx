@@ -22,6 +22,12 @@ import { forkProject } from "../services";
 import styles from "./Colab.module.sass";
 import { AddIcon } from "@icons/Add";
 import { SolidUserIcon } from "@icons/SolidUser";
+import {
+  ProjectDefaults,
+  ProjectInfoField,
+  ToastKind,
+  UiValue,
+} from "@constants";
 
 export function Colab() {
   const [addMenu, setAddMenu] = createSignal(false);
@@ -100,7 +106,7 @@ export function Colab() {
                           <button
                             class={styles.success}
                             onClick={() => {
-                              setProjectInfo("users", user, [
+                              setProjectInfo(ProjectInfoField.Users, user, [
                                 name,
                                 AccessLevel.ReadOnly,
                               ]);
@@ -115,7 +121,11 @@ export function Colab() {
                           <button
                             class={styles.error}
                             onClick={() => {
-                              setProjectInfo("requests", user, undefined);
+                              setProjectInfo(
+                                ProjectInfoField.Requests,
+                                user,
+                                undefined,
+                              );
                             }}
                           >
                             Kick
@@ -148,7 +158,7 @@ function ColabPublicPassword() {
 
     debounce = setTimeout(() => {
       sendMessage(ClientMessageKind.Config, { password: pass });
-    }, 500);
+      }, UiValue.ProjectPasswordDebounceMs);
   });
 
   return (
@@ -158,7 +168,10 @@ function ColabPublicPassword() {
         <Switchbox
           checked={projectInfo.is_public}
           onChange={(ev) => {
-            setProjectInfo("is_public", ev.currentTarget.checked);
+            setProjectInfo(
+              ProjectInfoField.IsPublic,
+              ev.currentTarget.checked,
+            );
             sendMessage(ClientMessageKind.Config, {
               is_public: ev.currentTarget.checked,
             });
@@ -185,13 +198,13 @@ function ColabButtons() {
     navigator.clipboard.writeText(
       `${location.protocol}//${location.host}/${projectInfo.id}${suffix}`,
     );
-    showToast("success", { text: "Link copied" });
+    showToast(ToastKind.Success, { text: "Link copied" });
   };
 
   return (
     <div class={styles.buttons_container}>
       <button onClick={() => copyPath()}>Copy colab link</button>
-      <button onClick={() => copyPath("/fork")}>Copy fork link</button>
+      <button onClick={() => copyPath(ProjectDefaults.ForkPath)}>Copy fork link</button>
       <button onClick={() => forkProject(projectInfo.id)}>Fork</button>
     </div>
   );

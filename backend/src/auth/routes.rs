@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 use crate::auth::jwt::RgUserData;
 use crate::auth::{github, jwt};
+use crate::constants::{auth as auth_constants, env, environment, http, json, limits};
 use crate::http_errors::HttpErrors;
 use crate::state::AppState;
 use crate::utils::ArcStr;
@@ -17,8 +18,6 @@ pub struct OAuthData {
     pub client: Option<github::GithubOAuthClient>,
 }
 
-const OAUTH_STATE_COOKIE: &str = "rsground_oauth_state";
-
 #[derive(Deserialize)]
 pub struct AuthRequest {
     pub code: String,
@@ -26,14 +25,15 @@ pub struct AuthRequest {
 }
 
 fn oauth_cookie_secure() -> bool {
-    std::env::var("RSGROUND_ENV").is_ok_and(|value| {
-        value.eq_ignore_ascii_case("production") || value.eq_ignore_ascii_case("prod")
+    std::env::var(env::ENVIRONMENT).is_ok_and(|value| {
+        value.eq_ignore_ascii_case(environment::PRODUCTION)
+            || value.eq_ignore_ascii_case(environment::PRODUCTION_ALIAS)
     })
 }
 
 fn oauth_state_cookie(value: impl Into<String>) -> Cookie<'static> {
-    Cookie::build(OAUTH_STATE_COOKIE, value.into())
-        .path("/auth")
+    Cookie::build(auth_constants::OAUTH_STATE_COOKIE, value.into())
+        .path(auth_constants::OAUTH_COOKIE_PATH)
         .http_only(true)
         .same_site(if oauth_cookie_secure() {
             SameSite::None
@@ -41,13 +41,15 @@ fn oauth_state_cookie(value: impl Into<String>) -> Cookie<'static> {
             SameSite::Lax
         })
         .secure(oauth_cookie_secure())
-        .max_age(CookieDuration::minutes(10))
+        .max_age(CookieDuration::minutes(
+            auth_constants::OAUTH_COOKIE_MAX_AGE_MINUTES,
+        ))
         .finish()
 }
 
 fn clear_oauth_state_cookie() -> Cookie<'static> {
-    Cookie::build(OAUTH_STATE_COOKIE, "")
-        .path("/auth")
+    Cookie::build(auth_constants::OAUTH_STATE_COOKIE, "")
+        .path(auth_constants::OAUTH_COOKIE_PATH)
         .http_only(true)
         .same_site(if oauth_cookie_secure() {
             SameSite::None
@@ -63,18 +65,18 @@ fn clear_oauth_state_cookie() -> Cookie<'static> {
 pub async fn auth(oauth: web::Data<OAuthData>) -> impl Responder {
     let Some(client) = oauth.client.as_ref() else {
         return HttpResponse::ServiceUnavailable().json(serde_json::json!({
-            "error": "GitHub OAuth is not configured"
+            (json::ERROR): HttpErrors::OAuthNotConfigured.to_string()
         }));
     };
 
     let (auth_url, csrf_token) = client
         .authorize_url(CsrfToken::new_random)
-        .add_scope(Scope::new("read:user".to_string()))
+        .add_scope(Scope::new(auth_constants::OAUTH_SCOPE_READ_USER.to_owned()))
         .url();
 
     HttpResponse::Found()
         .cookie(oauth_state_cookie(csrf_token.secret().to_owned()))
-        .append_header(("Location", auth_url.to_string()))
+        .append_header((http::LOCATION_HEADER, auth_url.to_string()))
         .finish()
 }
 
@@ -96,7 +98,7 @@ async fn callback(
         return Err(HttpErrors::OAuthNotConfigured);
     };
 
-    let Some(state_cookie) = req.cookie(OAUTH_STATE_COOKIE) else {
+    let Some(state_cookie) = req.cookie(auth_constants::OAUTH_STATE_COOKIE) else {
         return Err(HttpErrors::InvalidOAuthState);
     };
     if state_cookie.value() != query.state {
@@ -138,11 +140,11 @@ async fn callback(
     let response = HttpResponse::Ok()
         .cookie(clear_oauth_state_cookie())
         .json(serde_json::json!({
-            "jwt": jwt,
-            "id": github_user.login,
-            "name": github_user.login,
-            "avatar_url": github_user.avatar_url,
-            "is_guest": false,
+            (json::JWT): jwt,
+            (json::ID): github_user.login,
+            (json::NAME): github_user.login,
+            (json::AVATAR_URL): github_user.avatar_url,
+            (json::IS_GUEST): false,
         }));
 
     Ok(response)
@@ -159,7 +161,7 @@ async fn login_guest(
     body: web::Json<GuestLoginRequest>,
 ) -> HttpResult<HttpErrors> {
     let guest_name = body.guest_name.trim();
-    if guest_name.is_empty() || guest_name.chars().count() > 64 {
+    if guest_name.is_empty() || guest_name.chars().count() > limits::MAX_GUEST_NAME_CHARS {
         return Err(HttpErrors::InvalidGuestName);
     }
 
@@ -177,10 +179,10 @@ async fn login_guest(
     let jwt = user_data.encode()?;
 
     Ok(HttpResponse::Ok().json(serde_json::json!({
-        "jwt": jwt,
-        "id": guest_uuid,
-        "name": guest_name,
-        "is_guest": true,
+        (json::JWT): jwt,
+        (json::ID): guest_uuid,
+        (json::NAME): guest_name,
+        (json::IS_GUEST): true,
     })))
 }
 #[derive(Deserialize)]
@@ -203,7 +205,7 @@ async fn update_name(
     let uuid = token_data.id;
     let new_name = body.into_inner().new_name;
     let new_name = new_name.trim();
-    if new_name.is_empty() || new_name.chars().count() > 64 {
+    if new_name.is_empty() || new_name.chars().count() > limits::MAX_GUEST_NAME_CHARS {
         return Err(HttpErrors::InvalidGuestName);
     }
     let new_name: ArcStr = new_name.into();
@@ -220,9 +222,9 @@ async fn update_name(
     let jwt = user_data.encode()?;
 
     Ok(HttpResponse::Ok().json(serde_json::json!({
-        "jwt": jwt,
-        "id": uuid,
-        "name": new_name,
-        "is_guest": true,
+        (json::JWT): jwt,
+        (json::ID): uuid,
+        (json::NAME): new_name,
+        (json::IS_GUEST): true,
     })))
 }

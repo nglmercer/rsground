@@ -5,6 +5,7 @@ use chrono::{Duration, TimeDelta, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::constants::{auth, env, http};
 use crate::http_errors::HttpErrors;
 use crate::utils::ArcStr;
 
@@ -12,7 +13,7 @@ use crate::utils::ArcStr;
 /// guest-only development server usable after a fresh checkout. Deployments
 /// should always provide `JWT_SECRET` through their environment.
 pub static JWT_SECRET: LazyLock<String> = LazyLock::new(|| {
-    std::env::var("JWT_SECRET")
+    std::env::var(env::JWT_SECRET)
         .ok()
         .filter(|secret| !secret.trim().is_empty())
         .unwrap_or_else(|| {
@@ -22,20 +23,20 @@ pub static JWT_SECRET: LazyLock<String> = LazyLock::new(|| {
             format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple())
         })
 });
-const JWT_EXP: TimeDelta = Duration::hours(12);
-const MIN_DEPLOYMENT_SECRET_BYTES: usize = 32;
+const JWT_EXP: TimeDelta = Duration::hours(auth::JWT_EXPIRATION_HOURS);
 
 pub(crate) fn validate_deployment_secret() -> Result<(), String> {
-    let Some(secret) = std::env::var("JWT_SECRET")
+    let Some(secret) = std::env::var(env::JWT_SECRET)
         .ok()
         .filter(|secret| !secret.trim().is_empty())
     else {
         return Err("JWT_SECRET must be set for deployment".to_owned());
     };
 
-    if secret.len() < MIN_DEPLOYMENT_SECRET_BYTES {
+    if secret.len() < auth::MIN_DEPLOYMENT_SECRET_BYTES {
         return Err(format!(
-            "JWT_SECRET must contain at least {MIN_DEPLOYMENT_SECRET_BYTES} bytes for deployment"
+            "JWT_SECRET must contain at least {} bytes for deployment",
+            auth::MIN_DEPLOYMENT_SECRET_BYTES
         ));
     }
 
@@ -96,9 +97,9 @@ pub fn decode(token: impl AsRef<str>) -> Option<RgUserData> {
 
 pub fn get_auth_token(req: &HttpRequest) -> Option<&str> {
     req.headers()
-        .get("Authorization")
+        .get(http::AUTHORIZATION_HEADER)
         .and_then(|auth| auth.to_str().ok())
-        .and_then(|auth| auth.strip_prefix("Bearer "))
+        .and_then(|auth| auth.strip_prefix(http::BEARER_PREFIX))
 }
 
 pub fn get_user_info(req: &HttpRequest) -> Result<RgUserData, HttpErrors> {

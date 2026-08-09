@@ -28,6 +28,7 @@ import {
 import { Cursor } from "../types";
 
 import styles from "./CodeEditor.module.sass";
+import { EditingFileField } from "@constants";
 
 export interface CodeEditorProps {
   /** full-path of the target file to edit */
@@ -45,10 +46,10 @@ export function CodeEditor(props: CodeEditorProps) {
     throw new Error("Really?? Edit a folder?");
   }
 
-  setEditingFiles(file.data.fullPath, "editor_open", true);
+  setEditingFiles(file.data.fullPath, EditingFileField.EditorOpen, true);
 
   onCleanup(() => {
-    setEditingFiles(file.data.fullPath, "editor_open", false);
+    setEditingFiles(file.data.fullPath, EditingFileField.EditorOpen, false);
   });
 
   onWsMessage(ServerMessageKind.SyncCursors, (msg) => {

@@ -7,6 +7,17 @@ import { AccessLevel, ServerMessageKind } from "@features/ws/types";
 import { BACKEND_HOST } from "@services";
 import { showModal } from "@services/modal";
 import { showToast } from "@services/toast";
+import {
+  ApiPath,
+  HttpHeader,
+  HttpMethod,
+  HttpStatus,
+  ProjectDefaults,
+  ProjectInfoField,
+  ProjectUserTuple,
+  ToastKind,
+  UiValue,
+} from "@constants";
 
 import { ProjectInfo } from "../types";
 import {
@@ -31,25 +42,30 @@ onWsMessage(ServerMessageKind.UpdateAccess, (msg) => {
     }
 
     if (msg.access === AccessLevel.Editor) {
-      showToast("success", {
+      showToast(ToastKind.Success, {
         titleText: "You have been granted to edit",
       });
     } else if (msg.access === AccessLevel.ReadOnly) {
-      showToast("success", {
+      showToast(ToastKind.Success, {
         titleText: "You have been granted to read",
       });
     } else if (msg.access === AccessLevel.Queue) {
-      showToast("error", {
+      showToast(ToastKind.Error, {
         titleText: "You have been kicked",
       });
     }
     return;
   }
 
-  setProjectInfo("users", msg.user_id, 1, msg.access);
+  setProjectInfo(
+    ProjectInfoField.Users,
+    msg.user_id,
+    ProjectUserTuple.AccessIndex,
+    msg.access,
+  );
 
   projectInfo.requests[msg.user_id] &&
-    setProjectInfo("requests", msg.user_id, undefined);
+    setProjectInfo(ProjectInfoField.Requests, msg.user_id, undefined);
 });
 
 onWsMessage(ServerMessageKind.ProjectConfig, (msg) => {
@@ -60,11 +76,11 @@ onWsMessage(ServerMessageKind.ProjectConfig, (msg) => {
 });
 
 onWsMessage(ServerMessageKind.RequestAccess, (msg) => {
-  showToast("info", {
+  showToast(ToastKind.Info, {
     titleText: `${msg.user_name} is requesting access`,
-    timer: 5_000,
+    timer: UiValue.AccessRequestToastDurationMs,
   }).then(() => {
-    setProjectInfo("requests", msg.user_id, msg.user_name);
+    setProjectInfo(ProjectInfoField.Requests, msg.user_id, msg.user_name);
   });
 });
 
@@ -74,7 +90,7 @@ export function setProject(project: ProjectInfo, shouldFork: boolean) {
     // TODO: Pending permission, listen to permission granted.
     // Once user is allowed, should restart websocket connection
     // for receive welcome
-    setProjectInfo("id", project.id);
+    setProjectInfo(ProjectInfoField.Id, project.id);
     showModal(WaitingAccess, {
       allowOutsideClick: false,
     });
@@ -93,7 +109,8 @@ export function setProject(project: ProjectInfo, shouldFork: boolean) {
     setProjectAccess(
       isOwner
         ? AccessLevel.Editor
-        : project.users[untrack(authInfo).id]?.[1] ?? AccessLevel.Queue,
+        : project.users[untrack(authInfo).id]?.[ProjectUserTuple.AccessIndex] ??
+          AccessLevel.Queue,
     );
     setProjectInfo(project);
   });
@@ -107,12 +124,12 @@ export function setProject(project: ProjectInfo, shouldFork: boolean) {
 
 export async function createProject(
   owner: string,
-  name: string = "Unnamed",
+  name: string = ProjectDefaults.Name,
 ): Promise<string> {
-  let res = await fetch(`${BACKEND_HOST}/create/${encodeURIComponent(name)}`, {
-    method: "POST",
+  let res = await fetch(`${BACKEND_HOST}${ApiPath.CreateProject}/${encodeURIComponent(name)}`, {
+    method: HttpMethod.Post,
     headers: {
-      Authorization: `Bearer ${owner}`,
+      [HttpHeader.Authorization]: `Bearer ${owner}`,
     },
   });
 
@@ -127,17 +144,17 @@ export async function fetchProject(
   project_id: string,
   password = "",
 ): Promise<ProjectInfo> {
-  let res = await fetch(`${BACKEND_HOST}/project/${project_id}`, {
-    method: "GET",
+  let res = await fetch(`${BACKEND_HOST}${ApiPath.Project}/${project_id}`, {
+    method: HttpMethod.Get,
     headers: {
-      Authorization: `Bearer ${untrack(authInfo)?.jwt}`,
-      ...(password ? { "X-Project-Password": password } : {}),
+      [HttpHeader.Authorization]: `Bearer ${untrack(authInfo)?.jwt}`,
+      ...(password ? { [HttpHeader.ProjectPassword]: password } : {}),
     },
   });
 
   const body = await res.text();
 
-  if (res.status === 401) {
+  if (res.status === HttpStatus.Unauthorized) {
     try {
       return JSON.parse(body);
     } catch {}
@@ -151,10 +168,10 @@ export async function fetchProject(
 }
 
 export async function forkProject(project_id: string) {
-  let res = await fetch(`${BACKEND_HOST}/fork/${project_id}`, {
-    method: "POST",
+  let res = await fetch(`${BACKEND_HOST}${ApiPath.ForkProject}/${project_id}`, {
+    method: HttpMethod.Post,
     headers: {
-      Authorization: `Bearer ${untrack(authInfo)?.jwt}`,
+      [HttpHeader.Authorization]: `Bearer ${untrack(authInfo)?.jwt}`,
     },
   });
 

@@ -2,6 +2,7 @@ import { untrack } from "solid-js";
 import SWAL, { SweetAlertOptions } from "sweetalert2";
 
 import { ThemeMode, themeMode } from "@features/theme";
+import { ThemeAppearance, ToastIcon, ToastKind, UiValue } from "@constants";
 
 import styles from "./toast.module.sass";
 
@@ -9,7 +10,7 @@ const baseToast = SWAL.mixin({
   position: "bottom-right",
   toast: true,
   showConfirmButton: false,
-  timer: 5_000,
+  timer: UiValue.ToastDurationMs,
   timerProgressBar: true,
   didOpen(toast) {
     toast.onmouseenter = SWAL.stopTimer;
@@ -28,24 +29,24 @@ const baseToast = SWAL.mixin({
 });
 
 export function showToast<T = any>(
-  kind: "debug" | "info" | "success" | "warn" | "error",
+  kind: ToastKind,
   options: SweetAlertOptions,
 ): ReturnType<typeof baseToast.fire<T>> {
   return baseToast.fire<T>({
     theme: untrack(themeMode) === ThemeMode.System
-      ? "auto"
+      ? ThemeAppearance.Auto
       : untrack(themeMode) === ThemeMode.Dark
-      ? "dark"
-      : "light",
+      ? ThemeAppearance.Dark
+      : ThemeAppearance.Light,
     icon: options.icon ||
-      (kind === "debug"
-        ? "info"
-        : kind === "success"
-        ? "success"
-        : kind === "warn"
-        ? "warning"
-        : kind === "error"
-        ? "error"
+      (kind === ToastKind.Debug
+        ? ToastIcon.Info
+        : kind === ToastKind.Success
+        ? ToastIcon.Success
+        : kind === ToastKind.Warning
+        ? ToastIcon.Warning
+        : kind === ToastKind.Error
+        ? ToastIcon.Error
         : undefined),
     iconColor: "var(--icon-color)",
     customClass: {

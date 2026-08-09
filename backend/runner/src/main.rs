@@ -1,10 +1,12 @@
+use rsground_runner::constants;
+
 #[tokio::main]
 async fn main() {
     let runner = rsground_runner::Runner::new().await.unwrap();
 
     runner
         .create_file(
-            "main.rs",
+            constants::MAIN_FILE,
             r#"
             fn main() {
                 println!("Hello World");
@@ -19,7 +21,9 @@ async fn main() {
         .await
         .unwrap();
 
-    let mut cmd = runner.spawn("/bin/bash", ["-i"]).unwrap();
+    let mut cmd = runner
+        .spawn(constants::BASH, [constants::BASH_INTERACTIVE])
+        .unwrap();
 
     cmd.wait().unwrap();
 }

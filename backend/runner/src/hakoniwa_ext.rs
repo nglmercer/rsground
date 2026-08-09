@@ -6,6 +6,8 @@ use std::{
 
 use async_io::Async;
 
+use crate::constants::READER_BUFFER_SIZE;
+
 pub struct AsyncOsReader(Async<PipeReader>);
 
 impl From<PipeReader> for AsyncOsReader {
@@ -27,7 +29,7 @@ impl AsyncOsReader {
 
     pub async fn read_to_end(&mut self, buf: &mut Vec<u8>) -> std::io::Result<usize> {
         let mut total_bytes = 0;
-        let mut chunk = [0; 8192];
+        let mut chunk = [0; READER_BUFFER_SIZE];
 
         loop {
             let read_bytes = self.read(&mut chunk).await?;

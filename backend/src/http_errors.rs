@@ -1,6 +1,8 @@
 use actix_error_proc::ActixError;
 use thiserror::Error;
 
+use crate::constants::limits;
+
 #[derive(ActixError, Error, Debug)]
 pub enum HttpErrors {
     // -- JWT/Auth related -- //
@@ -15,11 +17,17 @@ pub enum HttpErrors {
     #[http_status(Forbidden)]
     GithubNameChange,
 
-    #[error("Guest name must contain between 1 and 64 characters")]
+    #[error(
+        "Guest name must contain between 1 and {} characters",
+        limits::MAX_GUEST_NAME_CHARS
+    )]
     #[http_status(BadRequest)]
     InvalidGuestName,
 
-    #[error("Project name must contain between 1 and 128 characters")]
+    #[error(
+        "Project name must contain between 1 and {} characters",
+        limits::MAX_PROJECT_NAME_CHARS
+    )]
     #[http_status(BadRequest)]
     InvalidProjectName,
 

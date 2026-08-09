@@ -3,9 +3,10 @@ import { Annotation } from "@codemirror/state";
 import { OpSeq } from "frontend-wasm";
 
 import { unicodeLength } from "./unicodeLength";
+import { Sync } from "@constants";
 
 export const syncAnnotationType = Annotation.define<string>();
-export const syncAnnotation = syncAnnotationType.of("SYNC");
+export const syncAnnotation = syncAnnotationType.of(Sync.Annotation);
 
 export function applyOperation(
   operation: OpSeq,

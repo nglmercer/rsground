@@ -4,13 +4,21 @@ import { authInfo } from "@features/auth/stores";
 import { AuthInfo } from "@features/auth/types";
 import { showModal } from "@services/modal";
 import { showToast } from "@services/toast";
+import {
+  HttpStatus,
+  ApiErrorMessage,
+  ProjectInfoField,
+  Route,
+  ToastKind,
+  UiValue,
+} from "@constants";
 
 import { createProject, fetchProject, setProject } from "../services";
 import { RequestPassword } from "../views";
 import { setProjectInfo } from "../stores";
 
 export function interceptProjectRoutes() {
-  if (window.location.pathname === "/") {
+  if (window.location.pathname === Route.Root) {
     createProjectWith(untrack(authInfo));
     return;
   }
@@ -22,13 +30,13 @@ export function interceptProjectRoutes() {
   let maybeAction = segments.shift();
 
   fetchProject(projectId).then((project) => {
-    setProject(project, maybeAction === "fork");
+    setProject(project, maybeAction === Route.Fork);
   }).catch((err: [number, string]) => {
     if (err instanceof Array) {
-      if (err[0] === 404) {
-        showToast("error", {
+      if (err[0] === HttpStatus.NotFound) {
+        showToast(ToastKind.Error, {
           titleText: "Project not found. Creating new one",
-          timer: 2_000,
+          timer: UiValue.ProjectNotFoundToastDurationMs,
         }).then(() => {
           createProjectWith(untrack(authInfo));
         });
@@ -36,20 +44,23 @@ export function interceptProjectRoutes() {
       }
 
       // Just retry until auto-logged
-      if (err[0] === 401 && err[1] == "Invalid token") {
+      if (
+        err[0] === HttpStatus.Unauthorized &&
+        err[1] == ApiErrorMessage.InvalidToken
+      ) {
         interceptProjectRoutes();
         return;
       }
 
-      if (err[0] == 401) {
-        setProjectInfo("id", projectId);
+      if (err[0] == HttpStatus.Unauthorized) {
+        setProjectInfo(ProjectInfoField.Id, projectId);
         showModal(RequestPassword);
         return;
       }
     }
 
     console.error(err);
-    showToast("error", {
+    showToast(ToastKind.Error, {
       titleText: "Unexpected error",
       text: "Contact to developers",
     });

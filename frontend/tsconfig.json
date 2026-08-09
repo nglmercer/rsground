@@ -15,6 +15,7 @@
       "@components/*": ["./src/components/*"],
       "@features/*": ["./src/features/*"],
       "@icons/*": ["./src/icons/*"],
+      "@constants": ["./src/constants.ts"],
       "@services": ["./src/services/index.ts"],
       "@services/*": ["./src/services/*"],
       "@styles/*": ["./src/styles/*"],

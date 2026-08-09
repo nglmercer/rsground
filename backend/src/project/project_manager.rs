@@ -7,15 +7,13 @@ use uuid::Uuid;
 
 use crate::auth::jwt::RgUserData;
 use crate::collab::Document;
+use crate::constants::{env, limits, project as project_constants};
 use crate::utils::ArcStr;
 use crate::ws::messages::ServerMessageError;
 
 use super::Project;
 
-const MAIN_RS: &str = r#"fn main() {
-    println!("Hello World");
-}"#;
-pub const DEFAULT_MAX_PROJECTS: usize = 64;
+pub const DEFAULT_MAX_PROJECTS: usize = limits::DEFAULT_MAX_PROJECTS;
 
 pub struct ProjectManager {
     projects: HashMap<Uuid, Arc<RwLock<Project>>>,
@@ -50,7 +48,10 @@ impl ProjectManager {
         let mut project = Project::new(owner.id.clone(), name).await?;
 
         project
-            .add_file("main.rs", Document::new_with(MAIN_RS.to_string()))
+            .add_file(
+                project_constants::MAIN_FILE,
+                Document::new_with(project_constants::MAIN_SOURCE.to_owned()),
+            )
             .await;
 
         self.add_project(project)
@@ -86,7 +87,7 @@ impl ProjectManager {
 }
 
 fn configured_max_projects() -> usize {
-    std::env::var("RSGROUND_MAX_PROJECTS")
+    std::env::var(env::MAX_PROJECTS)
         .ok()
         .and_then(|value| value.parse().ok())
         .filter(|limit: &usize| *limit > 0)

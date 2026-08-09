@@ -4,6 +4,28 @@ use std::{future::Future, net::TcpListener, time::Duration};
 use actix_web::{App, HttpServer};
 use awc::http::header::TryIntoHeaderPair;
 
+pub use backend::constants::{
+    access, http, json, output_channel, route, url, websocket, ws_action,
+};
+use backend::constants::{defaults, env};
+
+pub const OWNER_NAME: &str = "owner";
+pub const GUEST_NAME: &str = "guest";
+pub const USER_NAME: &str = "user";
+pub const TEST_FILE: &str = "test";
+pub const TEST_PASSWORD: &str = "correct horse battery staple";
+pub const HELLO_WORLD_OUTPUT: &str = "Hello World\n";
+pub const TEST_INSERT_TEXT: &str = "hello world";
+pub const INITIAL_REVISION: u64 = 0;
+pub const AFTER_INSERT_REVISION: u64 = 1;
+pub const DELETE_OPERATION: i32 = -5;
+pub const RETAIN_OPERATION: i32 = 6;
+pub const PASSWORD_BROADCAST_TIMEOUT_SECS: u64 = 3;
+pub const WS_RECEIVE_TIMEOUT_MS: u64 = 500;
+pub const TEST_SERVER_WORKERS: usize = 1;
+pub const READY_ATTEMPTS: usize = 100;
+pub const READY_RETRY_DELAY_MS: u64 = 10;
+
 tokio::task_local! {
     static TEST_API_BASE: String;
 }
@@ -28,7 +50,7 @@ impl TestServer {
                 .wrap(backend::cors())
                 .configure(move |config| app_data.configure(config))
         })
-        .workers(1)
+        .workers(TEST_SERVER_WORKERS)
         .listen(listener)
         .expect("Cannot start test server")
         .run();
@@ -53,9 +75,9 @@ impl Drop for TestServer {
 }
 
 async fn wait_until_ready(base_url: &str) {
-    for _ in 0..100 {
+    for _ in 0..READY_ATTEMPTS {
         if let Ok(response) = awc::Client::new()
-            .get(format!("{base_url}/health"))
+            .get(format!("{base_url}{}", route::HEALTH))
             .send()
             .await
         {
@@ -64,7 +86,7 @@ async fn wait_until_ready(base_url: &str) {
             }
         }
 
-        tokio::time::sleep(Duration::from_millis(10)).await;
+        tokio::time::sleep(Duration::from_millis(READY_RETRY_DELAY_MS)).await;
     }
 
     panic!("Test server did not become ready at {base_url}");
@@ -75,7 +97,7 @@ where
     F: FnOnce() -> Fut,
     Fut: Future<Output = T>,
 {
-    if std::env::var_os("RSGROUND_TEST_API_URL").is_some() {
+    if std::env::var_os(env::TEST_API_URL).is_some() {
         return test().await;
     }
 
@@ -86,7 +108,7 @@ where
 #[macro_export(local_inner_macros)]
 macro_rules! _const {
     (API_URL) => {
-        "http://localhost:8080"
+        defaults::BIND_ADDRESS
     };
     (WS_URL) => {
         "ws://localhost:8080/ws"
@@ -94,7 +116,10 @@ macro_rules! _const {
 }
 
 pub fn auth_header(token: impl fmt::Display) -> impl TryIntoHeaderPair {
-    ("Authorization", format!("Bearer {token}"))
+    (
+        http::AUTHORIZATION_HEADER,
+        format!("{}{}", http::BEARER_PREFIX, token),
+    )
 }
 
 pub fn api_url(path: &str) -> String {
@@ -104,25 +129,25 @@ pub fn api_url(path: &str) -> String {
 
 pub fn ws_url(path: &str) -> String {
     let base = api_base_url()
-        .replacen("http://", "ws://", 1)
-        .replacen("https://", "wss://", 1);
+        .replacen(url::HTTP_SCHEME, url::WS_SCHEME, 1)
+        .replacen(url::HTTPS_SCHEME, url::WSS_SCHEME, 1);
     format!("{base}{path}")
 }
 
 fn api_base_url() -> String {
-    if let Ok(base) = std::env::var("RSGROUND_TEST_API_URL") {
+    if let Ok(base) = std::env::var(env::TEST_API_URL) {
         return base;
     }
 
     TEST_API_BASE
         .try_with(Clone::clone)
-        .unwrap_or_else(|_| "http://127.0.0.1:8080".to_owned())
+        .unwrap_or_else(|_| format!("http://{}", defaults::BIND_ADDRESS))
 }
 
 #[macro_export]
 macro_rules! request {
-    ($path:literal $($tt:tt)*) => { request!([get] $path $($tt)*) };
-    ([$method:ident] $path:literal $($tt:tt)*) => {
+    ($path:expr, $($tt:tt)*) => { request!([get] $path, $($tt)*) };
+    ([$method:ident] $path:expr, $($tt:tt)*) => {
         request!(@compose [::awc::Client::new().request(::awc::http::Method::$method, $crate::common::api_url($path))] $($tt)*)
     };
     (@compose [$base:expr]) => { $base };
@@ -179,38 +204,38 @@ macro_rules! request {
 macro_rules! ws {
     (connect $owner:expr, $project_id:expr $(, $password:expr)?) => {
         ::awc::Client::new()
-            .ws($crate::common::ws_url(&format!("/ws/{}", $project_id)))
-            .set_header("Sec-WebSocket-Protocol", ws!(@connect-protocol $owner $($password)?))
+            .ws($crate::common::ws_url(&format!("{}/{}", $crate::common::route::WS_BASE, $project_id)))
+            .set_header($crate::common::http::SEC_WEBSOCKET_PROTOCOL_HEADER, ws!(@connect-protocol $owner $($password)?))
             .connect()
             .await
             .unwrap()
             .1
     };
 
-    (@connect-protocol $owner:expr) => {format!("auth.{}", $owner)};
-    (@connect-protocol $owner:expr, $password:expr) => {format!("auth.{}, password.{}", $owner, $password)};
+    (@connect-protocol $owner:expr) => {format!("{}.{}", $crate::common::websocket::AUTH_PROTOCOL, $owner)};
+    (@connect-protocol $owner:expr, $password:expr) => {format!("{}.{}, {}.{}", $crate::common::websocket::AUTH_PROTOCOL, $owner, $crate::common::websocket::PASSWORD_PROTOCOL, $password)};
 
-    (recv $ws:ident, $name:literal $(, $($tt:tt)+)?) => {
-        match ::tokio::time::timeout(::core::time::Duration::from_millis(500), $ws.next()).await {
+    (recv $ws:ident, $name:expr $(, $($tt:tt)+)?) => {
+        match ::tokio::time::timeout(::core::time::Duration::from_millis($crate::common::WS_RECEIVE_TIMEOUT_MS), $ws.next()).await {
             Ok(Some(Ok(awc::ws::Frame::Text(msg)))) =>  {
                 json_assert!(
                     ::serde_json::from_slice::<::serde_json::Value>(&msg).unwrap(),
                     tee_ref
-                    [ get "action", as string, eq $name ]
+                    [ get $crate::common::json::ACTION, as string, eq $name ]
                     $($($tt)+)?
                 )
             }
-            Ok(Some(Ok(kind))) => panic!(concat!("Expecting Text. Should receive ", $name, ": {:?}"), kind),
-            Ok(Some(Err(err))) => panic!(concat!("Error receiving message. Should receive ", $name, ": {}"), err),
-            Ok(None) => panic!(concat!("No remaining messages. Should receive ", $name)),
-            Err(_) => panic!(concat!("Timeout. Should receive ", $name)),
+            Ok(Some(Ok(kind))) => panic!("Expecting Text. Should receive {}: {:?}", $name, kind),
+            Ok(Some(Err(err))) => panic!("Error receiving message. Should receive {}: {}", $name, err),
+            Ok(None) => panic!("No remaining messages. Should receive {}", $name),
+            Err(_) => panic!("Timeout. Should receive {}", $name),
         }
     };
 
-    (send $ws:ident, $action:literal { $($tt:tt)* }) => {
+    (send $ws:ident, $action:expr, { $($tt:tt)* }) => {
         $ws
             .send(::awc::ws::Message::Text(::serde_json::json!({
-                "action": $action,
+                ($crate::common::json::ACTION): $action,
                 $($tt)*
             }).to_string().into()))
             .await
@@ -231,11 +256,11 @@ macro_rules! json_assert {
             json_assert!(@json ($ty) [&response] $($tt)+),
         )+)
     }};
-    (@json (Value) [$base:expr] get $key:literal $(, $($tt:tt)+)?) => {
-        json_assert!(@json (Value) [$key] [$base.get($key).expect(&format!(concat!('"', $key, "\" should exist in {}"), $base))] $($($tt)+)?)
+    (@json (Value) [$base:expr] get $key:expr $(, $($tt:tt)+)?) => {
+        json_assert!(@json (Value) [$key] [$base.get($key).expect(&format!("{} should exist in {}", $key, $base))] $($($tt)+)?)
     };
-    (@json (Object) [$base:expr] get $key:literal $(, $($tt:tt)+)?) => {
-        json_assert!(@json (Value) [$key] [$base.get($key).expect(&format!(concat!('"', $key, "\" should exist in {:?}"), $base))] $($($tt)+)?)
+    (@json (Object) [$base:expr] get $key:expr $(, $($tt:tt)+)?) => {
+        json_assert!(@json (Value) [$key] [$base.get($key).expect(&format!("{} should exist in {:?}", $key, $base))] $($($tt)+)?)
     };
 
     (@json ($ty:ident) [$base:expr] eq $eq:expr $(, $($tt:tt)+)?) => {
@@ -253,79 +278,86 @@ macro_rules! json_assert {
         }] $($($tt)+)?)
     };
 
-    (@json ($ty:ident) [$key:literal] [$base:expr]) => { $base };
+    (@json ($ty:ident) [$key:expr] [$base:expr]) => { $base };
 
-    (@json ($ty:ident) [$key:literal] [$base:expr] eq $eq:expr $(, $($tt:tt)+)?) => {
+    (@json ($ty:ident) [$key:expr] [$base:expr] eq $eq:expr $(, $($tt:tt)+)?) => {
         json_assert!(@json ($ty) [$key] [{
             let base = $base;
-            assert_eq!(base, $eq, $key);
+            assert_eq!(base, $eq, "{}", $key);
             base
         }] $($($tt)+)?)
     };
 
-    (@json ($ty:ident) [$key:literal] [$base:expr] dbg $(, $($tt:tt)+)?) => {
+    (@json ($ty:ident) [$key:expr] [$base:expr] dbg $(, $($tt:tt)+)?) => {
         json_assert!(@json ($ty) [$key] [{
             let base = $base;
-            println!(concat!("[", file!(), ":", line!(), ":", column!(), "] ", $key, " = {:?}"), base);
+            println!(
+                "[{}:{}:{}] {} = {:?}",
+                file!(),
+                line!(),
+                column!(),
+                $key,
+                base
+            );
             base
         }] $($($tt)+)?)
     };
 
-    (@json (Array) [$key:literal] [$base:expr] expect empty $(, $($tt:tt)+)?) => {
+    (@json (Array) [$key:expr] [$base:expr] expect empty $(, $($tt:tt)+)?) => {
         json_assert!(@json (Array) [$key] [{
             let base = $base;
             if !base.is_empty() {
-                panic!(concat!('"', $key, "\" should be empty"))
+                panic!("{} should be empty", $key)
             }
             base
         }] $($($tt)+)?)
     };
 
-    (@json (Value) [$key:literal] [$base:expr] as array $(, $($tt:tt)+)?) => {
+    (@json (Value) [$key:expr] [$base:expr] as array $(, $($tt:tt)+)?) => {
         json_assert!(
             @json
             (Array)
             [$key]
             [$base
                 .as_array()
-                .expect(&format!(concat!('"', $key, "\" should be an array")))
+                .expect(&format!("{} should be an array", $key))
                 .clone()]
             $($($tt)+)?
         )
     };
 
-    (@json (Value) [$key:literal] [$base:expr] as unsigned $(, $($tt:tt)+)?) => {
+    (@json (Value) [$key:expr] [$base:expr] as unsigned $(, $($tt:tt)+)?) => {
         json_assert!(
             @json
             (Unsigned)
             [$key]
             [$base
                 .as_u64()
-                .expect(&format!(concat!('"', $key, "\" should be an unsigned number")))]
+                .expect(&format!("{} should be an unsigned number", $key))]
             $($($tt)+)?
         )
     };
 
-    (@json (Value) [$key:literal] [$base:expr] as string $(, $($tt:tt)+)?) => {
+    (@json (Value) [$key:expr] [$base:expr] as string $(, $($tt:tt)+)?) => {
         json_assert!(
             @json
             (String)
             [$key]
             [$base
                 .as_str()
-                .expect(&format!(concat!('"', $key, "\" should be a string")))
+                .expect(&format!("{} should be a string", $key))
                 .to_string()]
             $($($tt)+)?
         )
     };
 
-    (@json (Value) [$key:literal] [$base:expr] as object $(, $($tt:tt)+)?) => {
+    (@json (Value) [$key:expr] [$base:expr] as object $(, $($tt:tt)+)?) => {
         json_assert!(
             @json
             (Object)
             [$base
                 .as_object()
-                .expect(&format!(concat!('"', $key, "\" should be an object")))
+                .expect(&format!("{} should be an object", $key))
                 .clone()]
             $($($tt)+)?
         )

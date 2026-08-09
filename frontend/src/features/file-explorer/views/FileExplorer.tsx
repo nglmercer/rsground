@@ -9,6 +9,7 @@ import { FolderPlusIcon } from "@icons/FolderPlus";
 import { FolderMinusIcon } from "@icons/FolderMinus";
 import { BrandsRustIcon } from "@icons/BrandsRust";
 import { FileLinesIcon } from "@icons/FileLines";
+import { ContextMenuLevel } from "@constants";
 
 import { createNewFile, syncFiles } from "../services";
 import { fileExplorer } from "../stores";
@@ -28,8 +29,8 @@ function RenderFolder(props: { data: FolderNode }) {
             "Add File": {},
             "Copy": {},
             "Paste": {},
-            "Rename": { level: "warning" },
-            "Delete": { level: "error" },
+            "Rename": { level: ContextMenuLevel.Warning },
+            "Delete": { level: ContextMenuLevel.Error },
           }}
         >
           <FolderPlusIcon class={styles.closed_folder} />
@@ -55,8 +56,8 @@ function RenderFile(props: { data: FileNode }) {
         [props.data.filename]: { disabled: true },
         "Copy": {},
         "Paste": {},
-        "Rename": { level: "warning" },
-        "Delete": { level: "error" },
+        "Rename": { level: ContextMenuLevel.Warning },
+        "Delete": { level: ContextMenuLevel.Error },
       }}
       onClick={() => openFile(props.data.fullPath)}
     >

@@ -5,6 +5,7 @@ use rsground_runner::{error::RunnerError, Runner};
 use tokio::sync::{broadcast, oneshot};
 use uuid::Uuid;
 
+use crate::constants::{output, project};
 use crate::ws::messages::{OutputChannel, ServerMessage};
 
 pub type AbortNotify = Arc<Mutex<Option<oneshot::Sender<()>>>>;
@@ -96,7 +97,7 @@ async fn execute_inner(project: ProjectExecuter, abort: oneshot::Receiver<()>) -
             async move |stdout| {
                 let Some(mut stdout) = stdout else { return };
 
-                let buf = &mut [0; 2048];
+                let buf = &mut [0; output::BUFFER_SIZE];
 
                 loop {
                     let Ok(size) = stdout.read(buf).await else {
@@ -125,7 +126,11 @@ async fn execute_inner(project: ProjectExecuter, abort: oneshot::Receiver<()>) -
     log::trace!("[Execute] compiling in {project_id}");
 
     let (status, _, _) = Runner::stream_output(
-        &mut runner.cmd_rustc(["--color", "always", "/home/main.rs"]),
+        &mut runner.cmd_rustc([
+            project::RUSTC_COLOR_ARGUMENT,
+            project::RUSTC_COLOR_ALWAYS,
+            project::RUNNER_MAIN_FILE,
+        ]),
         stream!(OutputChannel::Stdout),
         stream!(OutputChannel::Stderr),
         Some(abort),
@@ -137,7 +142,9 @@ async fn execute_inner(project: ProjectExecuter, abort: oneshot::Receiver<()>) -
             channel: OutputChannel::Stderr,
             buf: err.to_string().into_bytes(),
         });
-        _ = broadcast.send(ServerMessage::SyncOutputEnd { exit_code: 126 });
+        _ = broadcast.send(ServerMessage::SyncOutputEnd {
+            exit_code: output::COMPILE_FAILURE_EXIT_CODE,
+        });
     })?;
 
     if !status.success() {
@@ -151,14 +158,19 @@ async fn execute_inner(project: ProjectExecuter, abort: oneshot::Receiver<()>) -
 
     log::trace!("[Execute] patching in {project_id}");
 
-    let output = runner.patch_binary("/home/main").await.map_err(|err| {
-        log::error!("[Execute] patching failed in {project_id}: {err}");
-        _ = broadcast.send(ServerMessage::SyncOutput {
-            channel: OutputChannel::Stderr,
-            buf: err.to_string().into_bytes(),
-        });
-        _ = broadcast.send(ServerMessage::SyncOutputEnd { exit_code: 126 });
-    })?;
+    let output = runner
+        .patch_binary(project::RUNNER_MAIN_EXECUTABLE)
+        .await
+        .map_err(|err| {
+            log::error!("[Execute] patching failed in {project_id}: {err}");
+            _ = broadcast.send(ServerMessage::SyncOutput {
+                channel: OutputChannel::Stderr,
+                buf: err.to_string().into_bytes(),
+            });
+            _ = broadcast.send(ServerMessage::SyncOutputEnd {
+                exit_code: output::COMPILE_FAILURE_EXIT_CODE,
+            });
+        })?;
 
     if !output.status.success() {
         log::error!("[Execute] patch failed in {project_id}: {output:#?}");
@@ -170,7 +182,9 @@ async fn execute_inner(project: ProjectExecuter, abort: oneshot::Receiver<()>) -
             channel: OutputChannel::Stderr,
             buf: output.stderr,
         });
-        _ = broadcast.send(ServerMessage::SyncOutputEnd { exit_code: 126 });
+        _ = broadcast.send(ServerMessage::SyncOutputEnd {
+            exit_code: output::COMPILE_FAILURE_EXIT_CODE,
+        });
 
         return Err(());
     }
@@ -185,7 +199,7 @@ async fn execute_inner(project: ProjectExecuter, abort: oneshot::Receiver<()>) -
     };
 
     let (exit_code, _, _) = Runner::stream_output(
-        &mut runner.cmd("/home/main", [] as [&str; 0]),
+        &mut runner.cmd(project::RUNNER_MAIN_EXECUTABLE, [] as [&str; 0]),
         stream!(OutputChannel::Stdout),
         stream!(OutputChannel::Stderr),
         Some(abort),
@@ -197,7 +211,9 @@ async fn execute_inner(project: ProjectExecuter, abort: oneshot::Receiver<()>) -
             channel: OutputChannel::Stderr,
             buf: err.to_string().into_bytes(),
         });
-        _ = broadcast.send(ServerMessage::SyncOutputEnd { exit_code: 126 });
+        _ = broadcast.send(ServerMessage::SyncOutputEnd {
+            exit_code: output::COMPILE_FAILURE_EXIT_CODE,
+        });
     })?;
 
     log::trace!("[Execute] finish in {project_id}");

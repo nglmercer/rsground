@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 use crate::auth::jwt::RgUserData;
 use crate::collab::Document;
+use crate::constants::websocket;
 use crate::http_errors::HttpErrors;
 use crate::project::AccessLevel;
 use crate::state::AppState;
@@ -65,7 +66,8 @@ impl RgWebsocket {
         actix::spawn(async move {
             self.handle_welcome(&mut session).await;
 
-            let mut ping = tokio::time::interval(Duration::from_secs(5));
+            let mut ping =
+                tokio::time::interval(Duration::from_secs(websocket::HEARTBEAT_INTERVAL_SECS));
             // `interval` fires immediately on its first tick. Delay the
             // first heartbeat so it cannot overtake the welcome/connection
             // notifications during the handshake.
@@ -74,7 +76,7 @@ impl RgWebsocket {
             loop {
                 tokio::select! {
                     _ = ping.tick() => {
-                        _ = session.text("ping").await;
+                        _ = session.text(websocket::PING).await;
                     },
                     Ok(msg) = self.internal.recv() => {
                         self.handle_internal(msg, &mut session).await;

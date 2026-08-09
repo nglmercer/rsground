@@ -1,13 +1,14 @@
 import { BACKEND_HOST } from "@services";
 import { AuthInfo } from "../types";
+import { ApiPath, HttpHeader, HttpMethod } from "@constants";
 
 export async function fetchMe(jwt: string): Promise<AuthInfo> {
   const res = await fetch(
-    `${BACKEND_HOST}/auth/me`,
+    `${BACKEND_HOST}${ApiPath.AuthMe}`,
     {
-      method: "GET",
+      method: HttpMethod.Get,
       headers: {
-        "Authorization": `Bearer ${jwt}`,
+        [HttpHeader.Authorization]: `Bearer ${jwt}`,
       },
     },
   );

@@ -1,8 +1,9 @@
 import { createSignal, observable } from "solid-js";
 import { AuthInfo } from "../types";
 import { createLocalStoredSignal } from "@utils/createLocalStoredSignal";
+import { StorageKey } from "@constants";
 
-export const AUTH_KEY = "auth";
+export const AUTH_KEY = StorageKey.Auth;
 
 export const [authInfo, setAuthInfo] = createLocalStoredSignal<AuthInfo | null>(
   AUTH_KEY,

@@ -1,4 +1,6 @@
-export const REDIRECT_KEY = "redirect_url";
+import { Route, StorageKey } from "@constants";
+
+export const REDIRECT_KEY = StorageKey.RedirectUrl;
 
 /**
  * Change the current path to the url stored as `REDIRECT_KEY`.
@@ -6,7 +8,7 @@ export const REDIRECT_KEY = "redirect_url";
  * react, also prevent screen flickering.
  */
 export function goToRedirectUrl() {
-  const redirect_url = window.localStorage.getItem(REDIRECT_KEY) ?? "/";
+  const redirect_url = window.localStorage.getItem(REDIRECT_KEY) ?? Route.Root;
   window.localStorage.removeItem(REDIRECT_KEY);
 
   const url = new URL(window.location.href);

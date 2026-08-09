@@ -2,6 +2,7 @@ import Tooltip from "@corvu/tooltip";
 import { ComponentProps, ParentProps, splitProps } from "solid-js";
 
 import styles from "./SidebarNavItem.module.sass";
+import { UiValue } from "@constants";
 
 export interface SidebarNavItemProps {
   /**
@@ -26,7 +27,11 @@ export function SidebarNavItem(
 
   if (props.tooltip) {
     return (
-      <Tooltip placement="bottom" openDelay={200} hoverableContent={false}>
+      <Tooltip
+        placement="bottom"
+        openDelay={UiValue.TooltipOpenDelayMs}
+        hoverableContent={false}
+      >
         <Tooltip.Trigger
           as="button"
           classList={{

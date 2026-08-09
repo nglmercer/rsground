@@ -13,26 +13,30 @@ import {
 } from "../stores";
 import { applyOperationToString } from "../utils";
 import { OpSeq } from "frontend-wasm";
+import { DockviewConfig, EditingFileField, Panel } from "@constants";
 
 export async function openFile(filepath: string) {
-  const id = `file:${filepath}`;
+  const id = `${Panel.FilePrefix}${filepath}`;
   const filename = filepath.split("/").pop();
 
   if (!untrack(dockview).getPanel(id)) {
     untrack(dockview).addPanel({
       id,
-      component: "code",
+      component: Panel.Code,
       title: filename,
-      position: { direction: "above", referencePanel: "output" },
+      position: {
+        direction: DockviewConfig.CodeDirection,
+        referencePanel: Panel.Output,
+      },
     });
   }
 }
 
 export function startReceivingSync() {
   onWsMessage(ServerMessageKind.Sync, (msg) => {
-    if (unwrap(editingFiles)[msg.file]?.editor_open) return;
+    if (unwrap(editingFiles)[msg.file]?.[EditingFileField.EditorOpen]) return;
 
-    setEditingFiles(msg.file, "synced_revision", msg.revision);
+    setEditingFiles(msg.file, EditingFileField.SyncedRevision, msg.revision);
 
     let content = unwrap(syncFiles)[msg.file];
 

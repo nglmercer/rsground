@@ -12,6 +12,7 @@ fn main() {
     print!("Hello World");
 }
 "#;
+pub const HELLO_WORLD_OUTPUT: &str = "Hello World";
 
 pub fn print_output(output: &Output) {
     eprintln!("-- STDOUT\n{}", String::from_utf8_lossy(&output.stdout));

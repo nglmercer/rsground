@@ -1,6 +1,7 @@
 import Popover, { DynamicProps } from "@corvu/popover";
 import { For, JSX, ParentProps, splitProps, ValidComponent } from "solid-js";
 import { Dynamic } from "solid-js/web";
+import { ContextMenuConfig, ContextMenuLevel } from "@constants";
 
 import {
   addContextMenu,
@@ -15,7 +16,7 @@ import styles from "./ContextMenu.module.sass";
 export interface ContextMenuProps {
   options: Record<
     string,
-    { level?: string; disabled?: boolean; onClick?: () => void } | JSX.Element
+    { level?: ContextMenuLevel; disabled?: boolean; onClick?: () => void } | JSX.Element
   >;
 
   /**
@@ -63,8 +64,8 @@ export function ContextMenu(
 
     // Align context menu arrow with cursor event
     if (props.followCursor != false) {
-      anchorRef.style.top = `${ev.clientY - 16}px`;
-      anchorRef.style.left = `${ev.clientX + 8}px`;
+      anchorRef.style.top = `${ev.clientY - ContextMenuConfig.CursorAnchorOffsetPx}px`;
+      anchorRef.style.left = `${ev.clientX + ContextMenuConfig.CursorLeftOffsetPx}px`;
     }
     openContextMenu(contextMenuId);
   };
@@ -73,7 +74,7 @@ export function ContextMenu(
     <Popover
       open={contextMenus[contextMenuId]}
       onOpenChange={setContextMenu.bind(null, contextMenuId)}
-      placement="right-start"
+      placement={ContextMenuConfig.Placement}
       closeOnEscapeKeyDown
       closeOnOutsidePointer
       closeOnOutsideFocus={false}
@@ -113,9 +114,12 @@ export function ContextMenu(
                     classList={{
                       [styles.disabled]: item.disabled,
 
-                      [styles.item]: !["error", "warning"].includes(item.level),
-                      [styles.item_error]: item.level == "error",
-                      [styles.item_warning]: item.level == "warning",
+                      [styles.item]: ![
+                        ContextMenuLevel.Error,
+                        ContextMenuLevel.Warning,
+                      ].includes(item.level),
+                      [styles.item_error]: item.level === ContextMenuLevel.Error,
+                      [styles.item_warning]: item.level === ContextMenuLevel.Warning,
                     }}
                     onClick={item.onClick}
                   >

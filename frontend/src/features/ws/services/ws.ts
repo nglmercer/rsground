@@ -5,6 +5,7 @@ import { projectInfo, setProjectInfo } from "@features/colab/stores";
 import { openFile } from "@features/editor/services";
 import { syncFiles } from "@features/file-explorer/services";
 import { BACKEND_HOST } from "@services";
+import { ProjectDefaults, ProjectInfoField, WebSocketConfig } from "@constants";
 
 import {
   clearWsQueue,
@@ -57,35 +58,38 @@ export function startWebsocket() {
   subs.push(onWsMessage(ServerMessageKind.Welcome, (msg) => {
     setWsSessionId(msg.session_id);
 
-    if (msg.requests) setProjectInfo("requests", msg.requests);
+    if (msg.requests) setProjectInfo(ProjectInfoField.Requests, msg.requests);
 
     syncFiles(msg.files);
 
-    openFile("main.rs");
+    openFile(ProjectDefaults.MainFile);
   }));
 }
 
 const wsUrl = new URL(BACKEND_HOST);
 wsUrl.protocol = wsUrl.protocol === "http:" ? "ws:" : "wss:";
-wsUrl.pathname = "/ws/";
+wsUrl.pathname = WebSocketConfig.Path;
 
 const ws_callbacks: Array<(msg: ServerMessage) => void> = [];
 
 function connectWs(jwt: string, projectId: string) {
-  const session = new WebSocket(wsUrl + projectId, [`auth.${jwt}`]);
+  const session = new WebSocket(
+    wsUrl + projectId,
+    [`${WebSocketConfig.AuthProtocolPrefix}${jwt}`],
+  );
 
   let interval: NodeJS.Timeout;
   session.addEventListener("open", () => {
     setWsSession(session);
 
     interval = setInterval(() => {
-      session.send("ping");
-    }, 5000)
+      session.send(WebSocketConfig.Ping);
+    }, WebSocketConfig.HeartbeatIntervalMs)
   });
 
   session.addEventListener("message", (ev) => {
     clearWsQueue();
-    if (ev.data === "ping") return;
+    if (ev.data === WebSocketConfig.Ping) return;
     let data = JSON.parse(ev.data) as ServerMessage;
     console.debug("[WS] received:", data);
 
@@ -105,7 +109,7 @@ function connectWs(jwt: string, projectId: string) {
     setWsSession(null);
     console.error("Websocket closed:", ev);
 
-    if (ev.code === 1006) startWebsocket();
+    if (ev.code === WebSocketConfig.AbnormalClosureCode) startWebsocket();
   });
 }
 

@@ -1,5 +1,6 @@
 mod auth;
 mod collab;
+pub mod constants;
 mod health;
 mod http_errors;
 mod project;
@@ -14,7 +15,8 @@ use std::sync::LazyLock;
 use actix_cors::Cors;
 use auth::github;
 use auth::routes::OAuthData;
-use state::{AppState, DEFAULT_MAX_USERS};
+use constants::{defaults, env, environment, http};
+use state::AppState;
 use tokio::sync::Mutex;
 
 #[derive(Clone)]
@@ -46,11 +48,11 @@ pub fn new_app_data() -> AppData {
 }
 
 fn configured_max_users() -> usize {
-    std::env::var("RSGROUND_MAX_USERS")
+    std::env::var(env::MAX_USERS)
         .ok()
         .and_then(|value| value.parse().ok())
         .filter(|limit: &usize| *limit > 0)
-        .unwrap_or(DEFAULT_MAX_USERS)
+        .unwrap_or(constants::limits::DEFAULT_MAX_USERS)
 }
 
 pub fn initialize() {
@@ -58,8 +60,9 @@ pub fn initialize() {
 }
 
 pub fn validate_configuration(bind_address: &str) -> Result<(), String> {
-    let production = std::env::var("RSGROUND_ENV").is_ok_and(|value| {
-        value.eq_ignore_ascii_case("production") || value.eq_ignore_ascii_case("prod")
+    let production = std::env::var(env::ENVIRONMENT).is_ok_and(|value| {
+        value.eq_ignore_ascii_case(environment::PRODUCTION)
+            || value.eq_ignore_ascii_case(environment::PRODUCTION_ALIAS)
     });
     let public_bind = bind_address
         .parse::<SocketAddr>()
@@ -71,7 +74,7 @@ pub fn validate_configuration(bind_address: &str) -> Result<(), String> {
     }
 
     if (production || public_bind)
-        && !std::env::var("RSGROUND_CORS_ORIGINS")
+        && !std::env::var(env::CORS_ORIGINS)
             .ok()
             .is_some_and(|origins| {
                 let origins = origins
@@ -79,7 +82,7 @@ pub fn validate_configuration(bind_address: &str) -> Result<(), String> {
                     .map(str::trim)
                     .filter(|origin| !origin.is_empty())
                     .collect::<Vec<_>>();
-                !origins.is_empty() && origins.iter().all(|origin| *origin != "*")
+                !origins.is_empty() && origins.iter().all(|origin| *origin != http::CORS_WILDCARD)
             })
     {
         return Err(
@@ -97,7 +100,7 @@ pub fn validate_configuration(bind_address: &str) -> Result<(), String> {
 }
 
 pub fn cors() -> Cors {
-    let origins = std::env::var("RSGROUND_CORS_ORIGINS")
+    let origins = std::env::var(env::CORS_ORIGINS)
         .ok()
         .map(|value| {
             value
@@ -109,15 +112,19 @@ pub fn cors() -> Cors {
         })
         .filter(|origins| !origins.is_empty())
         .unwrap_or_else(|| {
-            vec![
-                "http://localhost:3000".to_owned(),
-                "http://127.0.0.1:3000".to_owned(),
-            ]
+            defaults::CORS_ORIGINS
+                .into_iter()
+                .map(str::to_owned)
+                .collect()
         });
 
     let mut cors = Cors::default()
-        .allowed_methods(["GET", "POST", "OPTIONS"])
-        .allowed_headers(["Authorization", "Content-Type", "X-Project-Password"])
+        .allowed_methods([http::GET_METHOD, http::POST_METHOD, http::OPTIONS_METHOD])
+        .allowed_headers([
+            http::AUTHORIZATION_HEADER,
+            http::CONTENT_TYPE_HEADER,
+            http::PROJECT_PASSWORD_HEADER,
+        ])
         .supports_credentials();
 
     for origin in origins {

@@ -10,6 +10,7 @@ import { outputPanel, setOutputPanel } from "../stores";
 
 import styles from "./OutputPanel.module.sass";
 import { createSignal, onMount, Show } from "solid-js";
+import { UiValue } from "@constants";
 
 const decoder = new TextDecoder();
 
@@ -29,7 +30,7 @@ export function OutputPanel() {
 
     if (
       outputPanel.length === 0 ||
-      outputPanel[outputPanel.length - 1].length >= 1024
+      outputPanel[outputPanel.length - 1].length >= UiValue.OutputChunkSize
     ) {
       setOutputPanel(outputPanel.length, decoded);
     } else {
@@ -91,7 +92,9 @@ export function OutputPanel() {
             onMount(() => {
               const target = contentRef.scrollHeight - contentRef.clientHeight;
 
-              if (contentRef.scrollTop + 50 >= target) {
+              if (
+                contentRef.scrollTop + UiValue.OutputScrollThresholdPx >= target
+              ) {
                 contentRef.scrollTop = target;
               }
             });

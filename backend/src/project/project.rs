@@ -14,6 +14,7 @@ use uuid::Uuid;
 
 use crate::auth::jwt::RgUserData;
 use crate::collab::{Document, DocumentInfo};
+use crate::constants::{limits, project as project_constants, websocket};
 use crate::http_errors::HttpErrors;
 use crate::utils::{ArcStr, AsyncInto, ToStream};
 use crate::ws::messages::{InternalMessage, ServerMessage};
@@ -21,10 +22,10 @@ use crate::ws::messages::{InternalMessage, ServerMessage};
 use super::project_runner::{AbortNotify, Execute, ProjectExecuter};
 use super::AccessLevel;
 
-pub const MAX_PROJECT_FILES: usize = 256;
-pub const MAX_PROJECT_NAME_CHARS: usize = 128;
-pub const MAX_PROJECT_PASSWORD_BYTES: usize = 256;
-const MAX_FILE_PATH_BYTES: usize = 512;
+pub const MAX_PROJECT_FILES: usize = limits::MAX_PROJECT_FILES;
+pub const MAX_PROJECT_NAME_CHARS: usize = limits::MAX_PROJECT_NAME_CHARS;
+pub const MAX_PROJECT_PASSWORD_BYTES: usize = limits::MAX_PROJECT_PASSWORD_BYTES;
+const MAX_FILE_PATH_BYTES: usize = limits::MAX_FILE_PATH_BYTES;
 
 pub struct Project {
     pub id: Uuid,
@@ -47,7 +48,7 @@ pub struct Project {
 impl Project {
     pub async fn new(owner: ArcStr, name: ArcStr) -> Result<Self, RunnerError> {
         let id = Uuid::new_v4();
-        let broadcast = broadcast::channel(u8::MAX as usize).0;
+        let broadcast = broadcast::channel(websocket::BROADCAST_CAPACITY).0;
 
         let (runner, execution, executer) = ProjectExecuter::start(id, broadcast.clone()).await?;
 
@@ -60,7 +61,7 @@ impl Project {
             requests: HashSet::new(),
             is_public: true,
             password: None,
-            internal: broadcast::channel(u8::MAX as usize).0,
+            internal: broadcast::channel(websocket::BROADCAST_CAPACITY).0,
             broadcast,
             runner,
             executer,
@@ -182,22 +183,28 @@ impl Project {
         (&self.documents)
             .to_stream()
             .map(async |(path, doc)| (path.clone(), doc.async_into().await))
-            .buffer_unordered(5)
+            .buffer_unordered(websocket::FILE_READ_CONCURRENCY)
             .collect()
             .await
     }
 
     pub async fn fork(&self, owner: ArcStr) -> Result<Project, RunnerError> {
-        let name = if self.name.ends_with(" (fork)") {
+        let name = if self.name.ends_with(project_constants::FORK_SUFFIX) {
             self.name.clone()
         } else {
-            format!("{} (fork)", self.name).as_str().into()
+            format!(
+                "{}{suffix}",
+                self.name,
+                suffix = project_constants::FORK_SUFFIX
+            )
+            .as_str()
+            .into()
         };
 
         let documents = (&self.documents)
             .to_stream()
             .map(async |(path, doc)| (path.clone(), doc.fork().await.into()))
-            .buffer_unordered(5)
+            .buffer_unordered(websocket::DOCUMENT_CONCURRENCY)
             .collect::<HashMap<ArcStr, Arc<Document>>>()
             .await;
 

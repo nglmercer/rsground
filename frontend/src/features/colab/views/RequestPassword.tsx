@@ -8,6 +8,7 @@ import { fetchProject, setProject } from "../services";
 import { projectInfo } from "../stores";
 
 import styles from "./RequestPassword.module.sass";
+import { ApiErrorMessage, HttpStatus } from "@constants";
 
 export function RequestPassword() {
   const [hint, setHint] = createSignal("");
@@ -39,9 +40,9 @@ export function RequestPassword() {
             }).catch(
               (err) => {
                 if (
-                  err instanceof Array && err[0] == 401 &&
-                  (err[1] as string).includes("Invalid password")
-                ) setHint("Invalid password");
+                  err instanceof Array && err[0] == HttpStatus.Unauthorized &&
+                  (err[1] as string).includes(ApiErrorMessage.InvalidPassword)
+                ) setHint(ApiErrorMessage.InvalidPassword);
               },
             );
           }

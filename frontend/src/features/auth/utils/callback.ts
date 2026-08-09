@@ -1,12 +1,13 @@
 import { batch } from "solid-js";
 import { setAuthInfo, setIsLoadingAuthInfo, goToRedirectUrl } from "../stores";
 import { authCallback } from "../services";
+import { QueryParam, Route } from "@constants";
 
 export function interceptAuthCallback(): Promise<void> {
-    if (window.location.pathname === "/auth/callback") {
+    if (window.location.pathname === Route.AuthCallback) {
         const url = new URL(window.location.href);
-        const code = url.searchParams.get("code");
-        const state = url.searchParams.get("state");
+        const code = url.searchParams.get(QueryParam.Code);
+        const state = url.searchParams.get(QueryParam.State);
 
         if (code && state) {
       return handleAuthCallback(code, state);

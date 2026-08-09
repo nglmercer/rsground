@@ -1,7 +1,9 @@
+import { RandomName } from "@constants";
+
 export function generateRandomName(): string {
   const firstName = firstNames[Math.random() * firstNames.length | 0]
   const lastName = lastNames[Math.random() * lastNames.length | 0]
-  const number = Math.random() * 999 | 0;
+  const number = Math.random() * RandomName.NumberRange | 0;
 
   return firstName + lastName + number
 }

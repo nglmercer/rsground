@@ -2,6 +2,7 @@ import Popover from "@corvu/popover";
 import { createEffect, createSelector, createSignal, For } from "solid-js";
 
 import { ChevronDownIcon } from "@icons/ChevronDown";
+import { SelectFieldConfig } from "@constants";
 
 import styles from "./SelectField.module.sass";
 
@@ -73,7 +74,7 @@ export function SelectField<T extends string>(props: SelectFieldProps<T>) {
   } else if ("prefix" in props) {
     name = props.prefix + "-" + nextSelectId++;
   } else {
-    name = "select-" + nextSelectId++;
+    name = SelectFieldConfig.DefaultPrefix + nextSelectId++;
   }
 
   const [open, setOpen] = createSignal(false);
@@ -98,7 +99,7 @@ export function SelectField<T extends string>(props: SelectFieldProps<T>) {
     <Popover
       open={open()}
       onOpenChange={(open) => !props.disabled && setOpen(open)}
-      placement={props.placement ?? "right-start"}
+      placement={props.placement ?? SelectFieldConfig.DefaultPlacement}
     >
       <Popover.Trigger
         classList={{ [styles.base]: true, [styles.disabled]: props.disabled }}

@@ -1,5 +1,6 @@
 import { Range, SelectionRange } from "@codemirror/state";
 import { Decoration } from "@codemirror/view";
+import { UiValue } from "@constants";
 
 /** Cursor from backend */
 export type RsCursor = [number, number];
@@ -36,7 +37,13 @@ export namespace Cursor {
     const hue = Array(owner.length)
       .fill(0)
       .map((_, i) => i * owner.charCodeAt(i))
-      .reduce((prev, acc) => ((prev + 1) * (acc + 1)) % 360, 0);
+      .reduce(
+        (prev, acc) =>
+          ((prev + UiValue.CursorHashOffset) *
+            (acc + UiValue.CursorHashOffset)) %
+          UiValue.CursorHueDegrees,
+        0,
+      );
 
     console.log(hue);
 

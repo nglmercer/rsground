@@ -2,6 +2,7 @@ import { JSX, untrack } from "solid-js";
 import SWAL, { SweetAlertOptions } from "sweetalert2";
 
 import { ThemeMode, themeMode } from "@features/theme";
+import { ThemeAppearance } from "@constants";
 
 import styles from "./modal.module.sass";
 import { render } from "solid-js/web";
@@ -31,10 +32,10 @@ export function showModal<T = any>(
 
   return baseToast.fire<T>({
     theme: untrack(themeMode) === ThemeMode.System
-      ? "auto"
+      ? ThemeAppearance.Auto
       : untrack(themeMode) === ThemeMode.Dark
-      ? "dark"
-      : "light",
+      ? ThemeAppearance.Dark
+      : ThemeAppearance.Light,
     ...options,
     html: elem,
     didOpen() {
@@ -42,4 +43,3 @@ export function showModal<T = any>(
     }
   });
 }
-

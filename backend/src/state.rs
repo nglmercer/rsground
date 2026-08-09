@@ -8,8 +8,6 @@ use crate::project::{Project, ProjectManager};
 use crate::utils::ArcStr;
 use crate::ws::messages::ServerMessageError;
 
-pub const DEFAULT_MAX_USERS: usize = 10_000;
-
 #[derive(Clone)]
 pub struct AppState {
     pub manager: Arc<Mutex<ProjectManager>>,

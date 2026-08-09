@@ -20,6 +20,7 @@ import {
 } from "../stores";
 import { unicodeLength } from "./unicodeLength";
 import { applyOperationToView, syncAnnotationType } from "./applyOperation";
+import { EditingFileField } from "@constants";
 
 type PendingChanges = {
   outstanding: OpSeq | null;
@@ -44,7 +45,8 @@ export function syncExtension(file: FileNode) {
 export function syncExtensionListener(view: EditorView, file: string) {
   const unsubscribe = onWsMessage(ServerMessageKind.Sync, (msg) => {
     if (msg.file === file && editingFiles[msg.file]) {
-      const actual_revision = editingFiles[msg.file].synced_revision;
+      const actual_revision =
+        editingFiles[msg.file][EditingFileField.SyncedRevision];
       const pending = pendingChanges(file);
 
       if (msg.revision > actual_revision) {
@@ -112,7 +114,11 @@ export function syncExtensionListener(view: EditorView, file: string) {
       setCursorsFiles(file, othersCursors);
 
       setSyncFiles(file, view.state.doc.toString());
-      setEditingFiles(msg.file, "synced_revision", new_revision);
+      setEditingFiles(
+        msg.file,
+        EditingFileField.SyncedRevision,
+        new_revision,
+      );
     }
   });
 
@@ -175,7 +181,7 @@ function anyEventHandler(file: FileNode) {
     if (pending.outstanding == null) {
       sendMessage(ClientMessageKind.Sync, {
         file: file.fullPath,
-        revision: editingFiles[file.fullPath].synced_revision,
+        revision: editingFiles[file.fullPath][EditingFileField.SyncedRevision],
         actions: JSON.parse(buffer.to_string()),
       });
       pending.outstanding = buffer;

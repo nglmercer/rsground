@@ -3,6 +3,7 @@ use actix_web::{web, HttpRequest};
 use uuid::Uuid;
 
 use crate::auth::jwt;
+use crate::constants::websocket as websocket_constants;
 use crate::http_errors::HttpErrors;
 use crate::state::AppState;
 use crate::ws::utils::parse_protocol_header;
@@ -25,8 +26,8 @@ async fn websocket(
 ) -> HttpResult<HttpErrors> {
     let (_, key_val) = parse_protocol_header(&req)?;
 
-    let password = get_element(&key_val, "password").cloned();
-    let Some(auth) = get_element(&key_val, "auth") else {
+    let password = get_element(&key_val, websocket_constants::PASSWORD_PROTOCOL).cloned();
+    let Some(auth) = get_element(&key_val, websocket_constants::AUTH_PROTOCOL) else {
         return Err(HttpErrors::NoTokenProvided);
     };
 
@@ -41,7 +42,7 @@ async fn websocket(
     let stream = stream
         .aggregate_continuations()
         // aggregate continuation frames up to 1MiB
-        .max_continuation_size(2_usize.pow(20));
+        .max_continuation_size(websocket_constants::MAX_CONTINUATION_SIZE_BYTES);
 
     ws.start(session, stream);
 

@@ -1,3 +1,4 @@
+use rsground_runner::constants::CARGO_MAIN_FILE;
 use rsground_runner::Runner;
 
 use super::HELLO_WORLD_RS;
@@ -12,7 +13,7 @@ edition = "2021"
 pub async fn cargo_init(runner: &Runner) {
     runner.create_file("Cargo.toml", CARGO_TOML).await.unwrap();
     runner
-        .create_file("src/main.rs", HELLO_WORLD_RS)
+        .create_file(CARGO_MAIN_FILE, HELLO_WORLD_RS)
         .await
         .unwrap();
 }

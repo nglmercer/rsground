@@ -7,6 +7,7 @@ use serde_json::json;
 use uuid::Uuid;
 
 use crate::auth::jwt;
+use crate::constants::{http, json as json_keys};
 use crate::http_errors::HttpErrors;
 use crate::project::{AccessLevel, Project, ProjectManagerError};
 use crate::state::AppState;
@@ -22,7 +23,7 @@ pub async fn get_project(
     let project_id = project_id.into_inner();
     let password = req
         .headers()
-        .get("X-Project-Password")
+        .get(http::PROJECT_PASSWORD_HEADER)
         .and_then(|password| password.to_str().ok())
         .filter(|password| !password.is_empty())
         .map(str::to_owned);
@@ -40,10 +41,10 @@ pub async fn get_project(
         project.add_request(&user_info);
 
         return Ok(HttpResponse::Unauthorized().json(json!({
-            "access": access,
-            "id": project.id,
-            "name": project.name,
-            "is_public": project.is_public,
+            (json_keys::ACCESS): access,
+            (json_keys::ID): project.id,
+            (json_keys::NAME): project.name,
+            (json_keys::IS_PUBLIC): project.is_public,
         })));
     }
 
@@ -61,16 +62,16 @@ pub async fn get_project(
     let is_owner = project.owner == user_info.id;
 
     Ok(HttpResponse::Ok()
-        .insert_header(("Cache-Control", "no-store"))
+        .insert_header((http::CACHE_CONTROL_HEADER, http::CACHE_CONTROL_NO_STORE))
         .json(json!({
-            "access": access,
-            "id": project.id,
-            "name": project.name,
-            "owner": project.owner,
-            "users": users,
-            "is_public": project.is_public,
-            "has_password": project.password.is_some(),
-            "is_owner": is_owner
+            (json_keys::ACCESS): access,
+            (json_keys::ID): project.id,
+            (json_keys::NAME): project.name,
+            (json_keys::OWNER): project.owner,
+            (json_keys::USERS): users,
+            (json_keys::IS_PUBLIC): project.is_public,
+            (json_keys::HAS_PASSWORD): project.password.is_some(),
+            (json_keys::IS_OWNER): is_owner
         })))
 }
 
@@ -99,7 +100,7 @@ pub async fn create_project(
     project.permit_access(user_info.id.clone(), AccessLevel::Editor);
 
     Ok(HttpResponse::Created().json(json!({
-        "id": project.id
+        (json_keys::ID): project.id
     })))
 }
 
@@ -148,7 +149,7 @@ pub async fn fork_project(
     project.permit_access(user_info.id.clone(), AccessLevel::Editor);
 
     Ok(HttpResponse::Created().json(json!({
-        "id": project.id
+        (json_keys::ID): project.id
     })))
 }
 

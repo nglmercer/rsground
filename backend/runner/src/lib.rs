@@ -1,3 +1,4 @@
+pub mod constants;
 pub mod error;
 pub mod hakoniwa_ext;
 
@@ -11,14 +12,18 @@ use std::time::Duration;
 use tokio::sync::oneshot;
 use tokio::{fs, io};
 
+use constants as runner_constants;
+
 pub const BASE_ENV: [(&str, &str); 3] = [
-    ("HOME", "/home"),
-    ("PATH", "/bin"),
-    ("LD_LIBRARY_PATH", "/lib:/lib64:/libexec"),
+    (runner_constants::ENV_HOME, runner_constants::CONTAINER_HOME),
+    (runner_constants::ENV_PATH, runner_constants::CONTAINER_BIN),
+    (
+        runner_constants::ENV_LIBRARY_PATH,
+        runner_constants::LIBRARY_PATH,
+    ),
 ];
 
 const VENDORED_ROOTFS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/lxc_rootfs");
-const COMMAND_WALL_TIME_SECS: u64 = 60;
 
 pub struct Runner {
     container: Container,
@@ -28,7 +33,7 @@ pub struct Runner {
 
 impl Runner {
     async fn create_home() -> io::Result<PathBuf> {
-        let mut temp_home = PathBuf::from("/tmp");
+        let mut temp_home = PathBuf::from(runner_constants::CONTAINER_TEMP);
         temp_home.push(uuid::Uuid::new_v4().simple().to_string());
 
         let mut builder = fs::DirBuilder::new();
@@ -49,15 +54,43 @@ impl Runner {
         // per-project home and temporary directories need write/execute
         // access; toolchain and system paths are read/execute only.
         let paths = [
-            ("/home", FsAccess::R | FsAccess::W | FsAccess::X, true),
-            ("/tmp", FsAccess::R | FsAccess::W | FsAccess::X, true),
-            ("/dev", FsAccess::R | FsAccess::W, true),
-            ("/proc", FsAccess::R, true),
-            ("/bin", FsAccess::R | FsAccess::X, false),
-            ("/etc", FsAccess::R, false),
-            ("/lib", FsAccess::R | FsAccess::X, false),
-            ("/lib64", FsAccess::R | FsAccess::X, false),
-            ("/usr", FsAccess::R | FsAccess::X, false),
+            (
+                runner_constants::CONTAINER_HOME,
+                FsAccess::R | FsAccess::W | FsAccess::X,
+                true,
+            ),
+            (
+                runner_constants::CONTAINER_TEMP,
+                FsAccess::R | FsAccess::W | FsAccess::X,
+                true,
+            ),
+            (
+                runner_constants::CONTAINER_DEV,
+                FsAccess::R | FsAccess::W,
+                true,
+            ),
+            (runner_constants::CONTAINER_PROC, FsAccess::R, true),
+            (
+                runner_constants::CONTAINER_BIN,
+                FsAccess::R | FsAccess::X,
+                false,
+            ),
+            (runner_constants::CONTAINER_ETC, FsAccess::R, false),
+            (
+                runner_constants::CONTAINER_LIB,
+                FsAccess::R | FsAccess::X,
+                false,
+            ),
+            (
+                runner_constants::CONTAINER_LIB64,
+                FsAccess::R | FsAccess::X,
+                false,
+            ),
+            (
+                runner_constants::CONTAINER_USR,
+                FsAccess::R | FsAccess::X,
+                false,
+            ),
         ];
 
         for (path, access, mounted) in paths {
@@ -72,23 +105,30 @@ impl Runner {
     fn create_container(temp_home: &str, host_fallback: bool) -> Result<Container, RunnerError> {
         let mut container = Container::new();
         container
-            .hostname("rsground")
+            .hostname(runner_constants::CONTAINER_HOSTNAME)
             // Submitted programs must not be able to reach the host network
             // or internal services. The vendored toolchain is self-contained.
             .unshare(hakoniwa::Namespace::Network);
 
         if host_fallback {
-            container.rootfs("/")?;
+            container.rootfs(runner_constants::HOST_ROOTFS)?;
 
-            if let Some(host_home) = std::env::var_os("HOME").map(PathBuf::from) {
+            if let Some(host_home) = std::env::var_os(runner_constants::ENV_HOME).map(PathBuf::from)
+            {
                 let rustup_home = host_home.join(".rustup");
                 if rustup_home.is_dir() {
-                    container.bindmount_ro(rustup_home.to_string_lossy().as_ref(), "/home/.rustup");
+                    container.bindmount_ro(
+                        rustup_home.to_string_lossy().as_ref(),
+                        runner_constants::RUSTUP_HOME,
+                    );
                 }
 
                 let cargo_home = host_home.join(".cargo");
                 if cargo_home.is_dir() {
-                    container.bindmount_rw(cargo_home.to_string_lossy().as_ref(), "/home/.cargo");
+                    container.bindmount_rw(
+                        cargo_home.to_string_lossy().as_ref(),
+                        runner_constants::CARGO_HOME,
+                    );
                 }
             }
         } else {
@@ -98,31 +138,47 @@ impl Runner {
         Self::configure_filesystem_policy(
             &mut container,
             if host_fallback {
-                Path::new("/")
+                Path::new(runner_constants::HOST_ROOTFS)
             } else {
                 Path::new(VENDORED_ROOTFS)
             },
         );
 
         container
-            .tmpfsmount("/tmp")
-            .devfsmount("/dev")
-            .procfsmount("/proc")
-            .uidmap(1001)
-            .gidmap(100)
-            .bindmount_rw(temp_home, "/home")
+            .tmpfsmount(runner_constants::CONTAINER_TEMP)
+            .devfsmount(runner_constants::CONTAINER_DEV)
+            .procfsmount(runner_constants::CONTAINER_PROC)
+            .uidmap(runner_constants::CONTAINER_UID)
+            .gidmap(runner_constants::CONTAINER_GID)
+            .bindmount_rw(temp_home, runner_constants::CONTAINER_HOME)
             // Keep compilation and execution bounded even when a submitted
             // program forks, allocates, or writes indefinitely.
             .setrlimit(
                 hakoniwa::Rlimit::As,
-                4 * 1024 * 1024 * 1024,
-                4 * 1024 * 1024 * 1024,
+                runner_constants::MEMORY_LIMIT_BYTES,
+                runner_constants::MEMORY_LIMIT_BYTES,
             )
-            .setrlimit(hakoniwa::Rlimit::Cpu, 30, 30)
+            .setrlimit(
+                hakoniwa::Rlimit::Cpu,
+                runner_constants::CPU_LIMIT_SECS,
+                runner_constants::CPU_LIMIT_SECS,
+            )
             .setrlimit(hakoniwa::Rlimit::Core, 0, 0)
-            .setrlimit(hakoniwa::Rlimit::Fsize, 64 * 1024 * 1024, 64 * 1024 * 1024)
-            .setrlimit(hakoniwa::Rlimit::Nofile, 1024, 1024)
-            .setrlimit(hakoniwa::Rlimit::Nproc, 1024, 1024);
+            .setrlimit(
+                hakoniwa::Rlimit::Fsize,
+                runner_constants::FILE_SIZE_LIMIT_BYTES,
+                runner_constants::FILE_SIZE_LIMIT_BYTES,
+            )
+            .setrlimit(
+                hakoniwa::Rlimit::Nofile,
+                runner_constants::OPEN_FILE_LIMIT,
+                runner_constants::OPEN_FILE_LIMIT,
+            )
+            .setrlimit(
+                hakoniwa::Rlimit::Nproc,
+                runner_constants::PROCESS_LIMIT,
+                runner_constants::PROCESS_LIMIT,
+            );
 
         Ok(container)
     }
@@ -176,8 +232,14 @@ impl Runner {
             // The development host uses rustup proxies. Their toolchains and
             // registry are mounted at these stable container paths above.
             command
-                .env("RUSTUP_HOME", "/home/.rustup")
-                .env("CARGO_HOME", "/home/.cargo");
+                .env(
+                    runner_constants::ENV_RUSTUP_HOME,
+                    runner_constants::RUSTUP_HOME,
+                )
+                .env(
+                    runner_constants::ENV_CARGO_HOME,
+                    runner_constants::CARGO_HOME,
+                );
         }
     }
 
@@ -275,11 +337,11 @@ impl Runner {
         StderrAsync: Future<Output = Stderr> + Send + 'static,
         StderrFn: FnOnce(Option<AsyncOsReader>) -> StderrAsync,
     {
-        cmd.wait_timeout(COMMAND_WALL_TIME_SECS);
+        cmd.wait_timeout(runner_constants::COMMAND_WALL_TIME_SECS);
 
         let mut child = cmd
             .envs(BASE_ENV)
-            .current_dir("/home")
+            .current_dir(runner_constants::CONTAINER_HOME)
             .stdin(hakoniwa::Stdio::MakePipe)
             .stdout(hakoniwa::Stdio::MakePipe)
             .stderr(hakoniwa::Stdio::MakePipe)
@@ -292,7 +354,9 @@ impl Runner {
 
         let status = if let Some(mut abort) = abort {
             tokio::spawn(async move {
-                let mut status_check_interval = tokio::time::interval(Duration::from_millis(100));
+                let mut status_check_interval = tokio::time::interval(Duration::from_millis(
+                    runner_constants::STATUS_POLL_INTERVAL_MS,
+                ));
 
                 loop {
                     tokio::select! {
@@ -305,8 +369,8 @@ impl Runner {
                             _ = child.kill();
                             _ = child.wait();
                             return Ok(ExitStatus {
-                                code: 137,
-                                reason: "Aborted".to_owned(),
+                                code: runner_constants::OUTPUT_ABORTED_CODE,
+                                reason: runner_constants::OUTPUT_ABORTED_REASON.to_owned(),
                                 exit_code: None,
                                 rusage: None,
                                 proc_pid_smaps_rollup: None,
@@ -328,8 +392,8 @@ impl Runner {
             .ok()
             .flatten()
             .unwrap_or(ExitStatus {
-                code: 126,
-                reason: "Cannot retrieve exit status".to_owned(),
+                code: runner_constants::OUTPUT_UNAVAILABLE_CODE,
+                reason: runner_constants::OUTPUT_UNAVAILABLE_REASON.to_owned(),
                 exit_code: None,
                 rusage: None,
                 proc_pid_smaps_rollup: None,
@@ -361,22 +425,22 @@ impl Runner {
             .stdin(hakoniwa::Stdio::Inherit)
             .stdout(hakoniwa::Stdio::Inherit)
             .stderr(hakoniwa::Stdio::Inherit)
-            .current_dir("/home")
+            .current_dir(runner_constants::CONTAINER_HOME)
             .spawn()
     }
 
     pub fn start_rls(&mut self) -> hakoniwa::Result<(Child, PipeWriter, PipeReader, PipeReader)> {
         let mut child = self.container.command(if self.host_fallback {
-            "/usr/lib/rustup/bin/rust-analyzer"
+            runner_constants::HOST_RUST_ANALYZER
         } else {
-            "/bin/rust-analyzer"
+            runner_constants::RUST_ANALYZER
         });
         self.configure_command(&mut child);
         let mut child = child
             .stdin(hakoniwa::Stdio::MakePipe)
             .stdout(hakoniwa::Stdio::MakePipe)
             .stderr(hakoniwa::Stdio::MakePipe)
-            .current_dir("/home")
+            .current_dir(runner_constants::CONTAINER_HOME)
             .spawn()?;
 
         let stdin = child.stdin.take().expect("Needs communication >:(");
@@ -409,14 +473,14 @@ impl Runner {
             .join(" ");
         let arg = format!("{} {args}", cmd.as_ref());
 
-        let mut cmd = self.container.command("/bin/bash");
+        let mut cmd = self.container.command(runner_constants::BASH);
         cmd.arg("-c").arg(&arg);
         self.configure_command(&mut cmd);
         cmd
     }
 
     pub fn cmd_rustc(&self, args: impl IntoIterator<Item = impl AsRef<str>>) -> Command {
-        let mut cmd = self.container.command("/bin/rustc");
+        let mut cmd = self.container.command(runner_constants::RUSTC);
         // -C linker=/bin/ld -C link-args=-L/lib -C link-args=-L/lib/gcc/x86_64-unknown-linux-gnu/14.2.1
         cmd.args(args);
         self.configure_command(&mut cmd);
@@ -425,18 +489,18 @@ impl Runner {
 
     pub async fn patch_binary(&self, path: impl AsRef<str>) -> Result<Output, hakoniwa::Error> {
         let path = path.as_ref();
-        if !path.starts_with("/home/") || path.contains("..") {
+        if !path.starts_with(runner_constants::HOME_PATH_PREFIX) || path.contains("..") {
             return Err(hakoniwa::Error::UnError(
-                "binary path must be inside /home".to_owned(),
+                runner_constants::INVALID_BINARY_PATH.to_owned(),
             ));
         }
 
         let patcher = if self.host_fallback {
-            ["/bin/patchelf", "/usr/bin/patchelf"]
+            [runner_constants::PATCHELF, runner_constants::HOST_PATCHELF]
                 .into_iter()
                 .find(|path| Path::new(path).is_file())
         } else {
-            Some("/bin/patchelf")
+            Some(runner_constants::PATCHELF)
         };
 
         let Some(patcher) = patcher else {
@@ -445,7 +509,7 @@ impl Runner {
             return Ok(Output {
                 status: ExitStatus {
                     code: 0,
-                    reason: "No binary patching required".to_owned(),
+                    reason: runner_constants::NO_PATCH_REASON.to_owned(),
                     exit_code: Some(0),
                     rusage: None,
                     proc_pid_smaps_rollup: None,
@@ -459,7 +523,7 @@ impl Runner {
         let mut command = self.container.command(patcher);
         command
             .arg("--set-interpreter")
-            .arg("/lib/ld-linux-x86-64.so.2")
+            .arg(runner_constants::DYNAMIC_LOADER)
             .arg(path);
         self.configure_command(&mut command);
 
@@ -468,8 +532,9 @@ impl Runner {
 }
 
 fn is_production() -> bool {
-    std::env::var("RSGROUND_ENV").is_ok_and(|value| {
-        value.eq_ignore_ascii_case("production") || value.eq_ignore_ascii_case("prod")
+    std::env::var(runner_constants::ENVIRONMENT).is_ok_and(|value| {
+        value.eq_ignore_ascii_case(runner_constants::PRODUCTION)
+            || value.eq_ignore_ascii_case(runner_constants::PRODUCTION_ALIAS)
     })
 }
 

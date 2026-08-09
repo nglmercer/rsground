@@ -8,6 +8,7 @@ import {
 import { setDockview } from "../stores";
 import { CodePanel } from "./CodePanel";
 import { OutputPanel } from "./OutputPanel";
+import { DockviewConfig, Panel } from "@constants";
 
 import "dockview-core/dist/styles/dockview.css";
 import "./dockview.sass";
@@ -20,19 +21,19 @@ export function Panels() {
 
   const dockview = new DockviewComponent(element, {
     theme: {
-      name: "rsground",
-      className: "rsground-dockview",
-      gap: 10,
-      dndOverlayMounting: "absolute",
-      dndPanelOverlay: "group",
+      name: DockviewConfig.ThemeName,
+      className: DockviewConfig.ThemeClassName,
+      gap: DockviewConfig.GapPx,
+      dndOverlayMounting: DockviewConfig.OverlayMounting,
+      dndPanelOverlay: DockviewConfig.OverlayGroup,
     } satisfies DockviewTheme,
     disableFloatingGroups: true,
-    singleTabMode: "default",
+    singleTabMode: DockviewConfig.SingleTabMode,
 
     createComponent(options) {
-      const element = (options.name == "code"
+      const element = (options.name == Panel.Code
         ? runWithOwner(owner, () => CodePanel(options.id))
-        : options.name == "output"
+        : options.name == Panel.Output
         ? OutputPanel()
         : <span>Esto es canallesco</span>) as HTMLElement;
 
@@ -44,14 +45,14 @@ export function Panels() {
   });
 
   dockview.api.onDidRemovePanel((e) => {
-    if (e.id == "output") {
+    if (e.id == Panel.Output) {
       dockview.api.addPanel({
-        id: "output",
-        component: "output",
-        title: "Output",
-        initialHeight: 20,
-        minimumHeight: 50,
-        position: { direction: "below" },
+        id: Panel.Output,
+        component: Panel.Output,
+        title: Panel.OutputTitle,
+        initialHeight: DockviewConfig.OutputInitialHeight,
+        minimumHeight: DockviewConfig.OutputMinimumHeight,
+        position: { direction: DockviewConfig.OutputDirection },
       });
     }
   });
@@ -59,12 +60,12 @@ export function Panels() {
   setDockview(dockview.api);
 
   dockview.api.addPanel({
-    id: "output",
-    component: "output",
-    title: "Output",
-    initialHeight: 20,
-    minimumHeight: 50,
-    position: { direction: "below" },
+    id: Panel.Output,
+    component: Panel.Output,
+    title: Panel.OutputTitle,
+    initialHeight: DockviewConfig.OutputInitialHeight,
+    minimumHeight: DockviewConfig.OutputMinimumHeight,
+    position: { direction: DockviewConfig.OutputDirection },
   });
 
   return element;
