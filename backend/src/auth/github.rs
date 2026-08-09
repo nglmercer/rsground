@@ -1,5 +1,6 @@
 use oauth2::basic::BasicClient;
 use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
+use reqwest::header::USER_AGENT;
 use serde::Deserialize;
 
 const GITHUB_CLIENT_ID_ENV: &str = "GITHUB_CLIENT_ID";
@@ -10,7 +11,7 @@ const GITHUB_AUTH_URL: &str = "https://github.com/login/oauth/authorize";
 const GITHUB_TOKEN_URL: &str = "https://github.com/login/oauth/access_token";
 const GITHUB_USER_URL: &str = "https://api.github.com/user";
 
-const USER_AGENT: &str = "RustLangEs/rsground";
+const GITHUB_USER_AGENT: &str = "RustLangEs/rsground";
 
 #[derive(Deserialize, Debug)]
 pub struct GitHubUser {
@@ -39,27 +40,25 @@ pub fn get_oauth_client() -> Option<BasicClient> {
              Set {GITHUB_CLIENT_ID_ENV}, {GITHUB_CLIENT_SECRET_ENV}, and \
              {GITHUB_CALLBACK_ENV} to enable GitHub login."
         );
+
         return None;
     };
 
+    let client_id = ClientId::new(client_id);
+    let client_secret = ClientSecret::new(client_secret);
+
     let auth_url = AuthUrl::new(GITHUB_AUTH_URL.to_owned())
-        .expect("GitHub authorization URL is a compile-time constant");
+        .expect("GITHUB_AUTH_URL must be a valid URL");
 
     let token_url = TokenUrl::new(GITHUB_TOKEN_URL.to_owned())
-        .expect("GitHub token URL is a compile-time constant");
+        .expect("GITHUB_TOKEN_URL must be a valid URL");
 
-    let redirect_uri = match RedirectUrl::new(callback) {
-        Ok(url) => url,
-        Err(error) => {
-            log::error!("Invalid {GITHUB_CALLBACK_ENV}: {error}");
-            return None;
-        }
-    };
+    let redirect_uri = RedirectUrl::new(callback).ok()?;
 
     Some(
         BasicClient::new(
-            ClientId::new(client_id),
-            Some(ClientSecret::new(client_secret)),
+            client_id,
+            Some(client_secret),
             auth_url,
             Some(token_url),
         )
@@ -70,14 +69,12 @@ pub fn get_oauth_client() -> Option<BasicClient> {
 pub async fn fetch_user(access_token: &str) -> Result<GitHubUser, reqwest::Error> {
     let client = reqwest::Client::new();
 
-    let res = client
+    let response = client
         .get(GITHUB_USER_URL)
-        .header("User-Agent", USER_AGENT)
+        .header(USER_AGENT, GITHUB_USER_AGENT)
         .bearer_auth(access_token)
         .send()
         .await?;
 
-    let user = res.json::<GitHubUser>().await?;
-
-    Ok(user)
+    response.json::<GitHubUser>().await
 }
