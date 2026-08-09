@@ -1,8 +1,8 @@
 import { BACKEND_HOST } from "@services";
-import { AuthInfo } from "../types";
+import { AuthVerification } from "../types";
 import { ApiPath, HttpHeader, HttpMethod, HttpStatus } from "@constants";
 
-export async function fetchMe(jwt: string): Promise<AuthInfo> {
+export async function fetchMe(jwt: string): Promise<AuthVerification> {
   const res = await fetch(
     `${BACKEND_HOST}${ApiPath.AuthMe}`,
     {

@@ -1,4 +1,4 @@
-import { setAuthInfo, authInfo } from "../stores";
+import { authInfo } from "../stores";
 import { fetchMe, loginGithub, loginGuest } from "../services";
 import { generateRandomName } from "./random_name";
 
@@ -15,12 +15,9 @@ export async function checkForAuth(): Promise<AuthCheckResult> {
 
   const userInfo = await fetchMe(jwt);
 
-  if (userInfo != null) {
-    // Refresh mutable profile data (for example a GitHub avatar) from the
-    // server instead of continuing with stale local storage.
-    setAuthInfo(userInfo);
-    return "ready";
-  }
+  // `/auth/me` validates the token but intentionally does not return it.
+  // Keep the locally stored session (including jwt and avatar_url) intact.
+  if (userInfo != null) return "ready";
 
   if (is_guest) {
     await loginGuest(name);

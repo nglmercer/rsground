@@ -16,17 +16,17 @@ describe("fetchMe", () => {
   });
 
   it("fetches the current user with a bearer token", async () => {
-    const authInfo = {
-      jwt: "jwt",
+    const userInfo = {
       id: "user-id",
       is_guest: true,
       name: "Ada",
+      exp: 1_999_999_999,
     };
     fetchMock.mockResolvedValue(
-      new Response(JSON.stringify(authInfo), { status: 200 }),
+      new Response(JSON.stringify(userInfo), { status: 200 }),
     );
 
-    await expect(fetchMe("jwt")).resolves.toEqual(authInfo);
+    await expect(fetchMe("jwt")).resolves.toEqual(userInfo);
     expect(fetchMock).toHaveBeenCalledWith(
       `http://backend.test${ApiPath.AuthMe}`,
       {
