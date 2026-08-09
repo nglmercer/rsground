@@ -23,6 +23,8 @@ impl TestServer {
         let app_data = backend::new_app_data();
 
         let server = HttpServer::new(move || {
+            let app_data = app_data.clone();
+
             App::new()
                 .wrap(
                     Cors::default()
@@ -30,7 +32,7 @@ impl TestServer {
                         .allow_any_method()
                         .allow_any_header(),
                 )
-                .configure(|config| app_data.configure(config))
+                .configure(move |config| app_data.configure(config))
         })
         .workers(1)
         .listen(listener)

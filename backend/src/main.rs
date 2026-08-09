@@ -17,6 +17,8 @@ async fn main() -> std::io::Result<()> {
     log::info!("Listening on http://{bind_address}");
 
     HttpServer::new(move || {
+        let app_data = app_data.clone();
+
         App::new()
             .wrap(
                 Cors::default()
@@ -24,7 +26,7 @@ async fn main() -> std::io::Result<()> {
                     .allow_any_method()
                     .allow_any_header(),
             )
-            .configure(|config| app_data.configure(config))
+            .configure(move |config| app_data.configure(config))
     })
     .bind(bind_address)?
     .run()

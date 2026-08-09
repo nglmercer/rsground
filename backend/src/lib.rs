@@ -15,6 +15,7 @@ use auth::routes::OAuthData;
 use state::AppState;
 use tokio::sync::Mutex;
 
+#[derive(Clone)]
 pub struct AppData {
     app_state: actix_web::web::Data<AppState>,
     oauth_data: actix_web::web::Data<OAuthData>,
