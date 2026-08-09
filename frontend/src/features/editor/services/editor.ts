@@ -15,6 +15,8 @@ import { applyOperationToString } from "../utils";
 import { OpSeq } from "frontend-wasm";
 import { DockviewConfig, EditingFileField, FilePath, Panel } from "@constants";
 
+let syncListenerStarted = false;
+
 export async function openFile(filepath: string) {
   const id = `${Panel.FilePrefix}${filepath}`;
   const filename = filepath.split(FilePath.Separator).pop();
@@ -33,6 +35,9 @@ export async function openFile(filepath: string) {
 }
 
 export function startReceivingSync() {
+  if (syncListenerStarted) return;
+  syncListenerStarted = true;
+
   onWsMessage(ServerMessageKind.Sync, (msg) => {
     if (unwrap(editingFiles)[msg.file]?.[EditingFileField.EditorOpen]) return;
 

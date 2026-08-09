@@ -1,0 +1,56 @@
+@use "../styles/mixins" as *
+
+.container
+  grid-column: 1 / -1
+  grid-row: 1
+  width: 100%
+  min-width: 0
+  min-height: 100dvh
+  display: grid
+  place-items: center
+  padding: 1.5rem
+  background: var(--colors-background)
+  color: var(--surface-foreground)
+
+.card
+  +neobrutalism(lg)
+
+  width: min(100%, 28rem)
+  padding: 2rem
+  display: flex
+  flex-direction: column
+  align-items: center
+  gap: 1rem
+  text-align: center
+  background: var(--surface-background)
+
+  h1
+    font-size: clamp(1.25rem, 4vw, 1.75rem)
+
+  p
+    max-width: 24rem
+    color: var(--surface-foreground)
+    opacity: .8
+
+  button
+    +neobrutalism
+
+    padding: .5rem 1rem
+    background: var(--colors-primary)
+    color: #000
+    font-weight: 700
+    cursor: pointer
+
+.spinner
+  color: var(--colors-primary)
+
+.error_icon
+  width: 2.5rem
+  height: 2.5rem
+  display: grid
+  place-items: center
+  border: 3px solid var(--colors-error-500)
+  border-radius: var(--radius-full)
+  color: var(--colors-error-500)
+  font-size: 1.75rem
+  font-weight: 800

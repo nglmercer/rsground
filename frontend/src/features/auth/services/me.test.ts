@@ -43,4 +43,12 @@ describe("fetchMe", () => {
 
     await expect(fetchMe("expired-jwt")).resolves.toBeNull();
   });
+
+  it("surfaces server failures instead of treating them as an expired session", async () => {
+    fetchMock.mockResolvedValue(new Response("unavailable", { status: 503 }));
+
+    await expect(fetchMe("jwt")).rejects.toThrow(
+      "Unable to verify the session (503)",
+    );
+  });
 });

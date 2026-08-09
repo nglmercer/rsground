@@ -30,6 +30,18 @@ import {
 } from "../stores";
 import { WaitingAccess } from "../views";
 
+export class ProjectRequestError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly body: string,
+  ) {
+    super(body || `Project request failed (${status})`);
+    this.name = "ProjectRequestError";
+  }
+}
+
+export type ProjectSetupResult = "ready" | "redirecting";
+
 onWsMessage(ServerMessageKind.UpdateAccess, (msg) => {
   if (!isProjectOwner()) {
     const oldAccess = untrack(projectAccess);
@@ -84,7 +96,10 @@ onWsMessage(ServerMessageKind.RequestAccess, (msg) => {
   });
 });
 
-export function setProject(project: ProjectInfo, shouldFork: boolean) {
+export async function setProject(
+  project: ProjectInfo,
+  shouldFork: boolean,
+): Promise<ProjectSetupResult> {
   // Check if has access to project
   if (project.users == null) {
     // TODO: Pending permission, listen to permission granted.
@@ -94,12 +109,12 @@ export function setProject(project: ProjectInfo, shouldFork: boolean) {
     showModal(WaitingAccess, {
       allowOutsideClick: false,
     });
-    return;
+    return "ready";
   }
 
   if (shouldFork) {
-    forkProject(project.id);
-    return;
+    await forkProject(project.id);
+    return "redirecting";
   }
 
   batch(() => {
@@ -120,6 +135,8 @@ export function setProject(project: ProjectInfo, shouldFork: boolean) {
   SWAL.close();
 
   startWebsocket();
+
+  return "ready";
 }
 
 export async function createProject(
@@ -133,11 +150,22 @@ export async function createProject(
     },
   });
 
-  if (!res.ok) {
-    return null;
+  const body = await res.text();
+
+  if (!res.ok) throw new ProjectRequestError(res.status, body);
+
+  let projectId: unknown;
+  try {
+    projectId = JSON.parse(body).id;
+  } catch {
+    throw new Error("The server returned an invalid project.");
   }
 
-  return (await res.json()).id;
+  if (typeof projectId !== "string" || !projectId) {
+    throw new Error("The server did not return a project id.");
+  }
+
+  return projectId;
 }
 
 export async function fetchProject(
@@ -160,14 +188,16 @@ export async function fetchProject(
     } catch {}
   }
 
-  if (!res.ok) {
-    throw [res.status, body];
-  }
+  if (!res.ok) throw new ProjectRequestError(res.status, body);
 
-  return JSON.parse(body);
+  try {
+    return JSON.parse(body);
+  } catch {
+    throw new Error("The server returned an invalid project.");
+  }
 }
 
-export async function forkProject(project_id: string) {
+export async function forkProject(project_id: string): Promise<ProjectSetupResult> {
   let res = await fetch(`${BACKEND_HOST}${ApiPath.ForkProject}/${project_id}`, {
     method: HttpMethod.Post,
     headers: {
@@ -175,11 +205,25 @@ export async function forkProject(project_id: string) {
     },
   });
 
-  if (!res.ok) {
-    return;
+  const body = await res.text();
+
+  if (!res.ok) throw new ProjectRequestError(res.status, body);
+
+  let projectId: unknown;
+  try {
+    projectId = JSON.parse(body).id;
+  } catch {
+    throw new Error("The server returned an invalid fork.");
   }
 
-  const { id } = await res.json();
+  if (typeof projectId !== "string" || !projectId) {
+    throw new Error("The server did not return a fork id.");
+  }
 
-  location.pathname = "/" + id;
+  redirectToProject(projectId);
+  return "redirecting";
+}
+
+export function redirectToProject(projectId: string): void {
+  window.location.replace(`/${encodeURIComponent(projectId)}`);
 }

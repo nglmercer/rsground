@@ -18,6 +18,11 @@ export default defineConfig({
     conditions: ["browser", "development"],
     alias: {
       "@constants": `${frontendRoot}/src/constants.ts`,
+      "@components": `${frontendRoot}/src/components`,
+      "@features": `${frontendRoot}/src/features`,
+      "@icons": `${frontendRoot}/src/icons`,
+      "@services": `${frontendRoot}/src/services/index.ts`,
+      "@utils": `${frontendRoot}/src/utils`,
     },
   },
   test: {

@@ -5,7 +5,9 @@ import { loginGuest } from "./login_guest";
 export async function logout() {
   setIsLoadingAuthInfo(true);
 
-  await loginGuest(generateRandomName());
-
-  setIsLoadingAuthInfo(false);
+  try {
+    await loginGuest(generateRandomName());
+  } finally {
+    setIsLoadingAuthInfo(false);
+  }
 }

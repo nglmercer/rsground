@@ -1,4 +1,4 @@
-import { createEffect } from "solid-js";
+import { createEffect, createSignal, Show } from "solid-js";
 import SWAL from "sweetalert2";
 
 import { loginGithub } from "@features/auth/services";
@@ -7,12 +7,15 @@ import { AccessLevel } from "@features/ws/types";
 import { BrandsGithubIcon } from "@icons/BrandsGithub";
 
 import { projectAccess } from "../stores";
-import { createProject } from "../services";
-import { Route } from "@constants";
+import { createProject, redirectToProject } from "../services";
+import { ToastKind } from "@constants";
+import { showToast } from "@services/toast";
 
 import styles from "./WaitingAccess.module.sass";
 
 export function WaitingAccess() {
+  const [isCreating, setIsCreating] = createSignal(false);
+
   createEffect(() => {
     if (projectAccess() !== AccessLevel.Queue) {
       SWAL.close();
@@ -27,13 +30,29 @@ export function WaitingAccess() {
       </p>
       <div class={styles.actions}>
         <button
+          disabled={isCreating()}
+          aria-busy={isCreating()}
           onClick={async () => {
-            let newProject = await createProject(authInfo().jwt);
+            if (isCreating()) return;
 
-      location.pathname = Route.Root + newProject;
+            setIsCreating(true);
+            try {
+              const newProject = await createProject(authInfo().jwt);
+              redirectToProject(newProject);
+            } catch (error) {
+              console.error("Unable to create a project:", error);
+              void showToast(ToastKind.Error, {
+                titleText: "Could not create a project",
+                text: "Please check your connection and try again.",
+              });
+            } finally {
+              setIsCreating(false);
+            }
           }}
         >
-          Create new
+          <Show when={!isCreating()} fallback="Creating…">
+            Create new
+          </Show>
         </button>
         <button
           class={styles.action_secondary}

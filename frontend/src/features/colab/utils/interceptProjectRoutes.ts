@@ -13,64 +13,83 @@ import {
   UiValue,
 } from "@constants";
 
-import { createProject, fetchProject, setProject } from "../services";
+import {
+  createProject,
+  fetchProject,
+  ProjectRequestError,
+  ProjectSetupResult,
+  redirectToProject,
+  setProject,
+} from "../services";
 import { RequestPassword } from "../views";
 import { setProjectInfo } from "../stores";
 
-export function interceptProjectRoutes() {
-  if (window.location.pathname === Route.Root) {
-    createProjectWith(untrack(authInfo));
-    return;
+export async function interceptProjectRoutes(): Promise<ProjectSetupResult> {
+  const pathname = window.location.pathname;
+
+  if (pathname === Route.Root) {
+    return createProjectWith(untrack(authInfo));
   }
 
-  let segments = window.location.pathname.split("/");
-  segments.shift();
+  if (pathname === Route.Auth || pathname.startsWith(`${Route.Auth}/`)) {
+    window.location.replace(Route.Root);
+    return "redirecting";
+  }
 
-  let projectId = segments.shift();
-  let maybeAction = segments.shift();
+  const segments = pathname.split("/").filter(Boolean);
+  const projectId = segments[0];
+  const maybeAction = segments[1];
 
-  fetchProject(projectId).then((project) => {
-    setProject(project, maybeAction === Route.Fork);
-  }).catch((err: [number, string]) => {
-    if (err instanceof Array) {
-      if (err[0] === HttpStatus.NotFound) {
-        showToast(ToastKind.Error, {
-          titleText: "Project not found. Creating new one",
+  if (
+    !projectId ||
+    segments.length > 2 ||
+    (maybeAction && maybeAction !== Route.Fork)
+  ) {
+    throw new Error("This project URL is not valid.");
+  }
+
+  try {
+    const project = await fetchProject(projectId);
+    return await setProject(project, maybeAction === Route.Fork);
+  } catch (error) {
+    if (error instanceof ProjectRequestError) {
+      if (error.status === HttpStatus.NotFound) {
+        void showToast(ToastKind.Error, {
+          titleText: "Project not found. Creating a new one",
           timer: UiValue.ProjectNotFoundToastDurationMs,
-        }).then(() => {
-          createProjectWith(untrack(authInfo));
         });
-        return;
+        return createProjectWith(untrack(authInfo));
       }
 
-      // Just retry until auto-logged
-      if (
-        err[0] === HttpStatus.Unauthorized &&
-        err[1] == ApiErrorMessage.InvalidToken
-      ) {
-        interceptProjectRoutes();
-        return;
-      }
+      if (error.status === HttpStatus.Unauthorized) {
+        if (error.body.includes(ApiErrorMessage.InvalidToken)) {
+          // Retrying synchronously here used to create an infinite recursion
+          // when a token expired between /auth/me and this request. Surface a
+          // recoverable error instead; the app-level retry re-checks auth.
+          throw new Error("Your session expired. Please try again.");
+        }
 
-      if (err[0] == HttpStatus.Unauthorized) {
         setProjectInfo(ProjectInfoField.Id, projectId);
-        showModal(RequestPassword);
-        return;
+        void showModal(RequestPassword);
+        return "ready";
       }
     }
 
-    console.error(err);
-    showToast(ToastKind.Error, {
-      titleText: "Unexpected error",
-      text: "Contact to developers",
-    });
-  });
+    throw error instanceof Error
+      ? error
+      : new Error("Unable to load this project. Please try again.");
+  }
 }
 
-async function createProjectWith(authInfo: AuthInfo) {
-  if (!!authInfo?.jwt) {
-    let projectId = await createProject(authInfo.jwt);
-
-    window.location.pathname = "/" + projectId;
+async function createProjectWith(
+  authInfo: AuthInfo | null,
+): Promise<ProjectSetupResult> {
+  if (!authInfo?.jwt) {
+    throw new Error("Your session is not ready. Please try again.");
   }
+
+  const projectId = await createProject(authInfo.jwt);
+  // Replace the root/new-project URL so Back does not create another project.
+  redirectToProject(projectId);
+  return "redirecting";
 }

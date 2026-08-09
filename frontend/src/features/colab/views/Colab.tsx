@@ -194,18 +194,50 @@ function ColabPublicPassword() {
 }
 
 function ColabButtons() {
+  const [isForking, setIsForking] = createSignal(false);
+
   const copyPath = (suffix = "") => {
-    navigator.clipboard.writeText(
+    if (!navigator.clipboard) {
+      void showToast(ToastKind.Error, { text: "Clipboard is unavailable" });
+      return;
+    }
+
+    void navigator.clipboard.writeText(
       `${location.protocol}//${location.host}/${projectInfo.id}${suffix}`,
+    ).then(
+      () => showToast(ToastKind.Success, { text: "Link copied" }),
+      () => showToast(ToastKind.Error, { text: "Could not copy the link" }),
     );
-    showToast(ToastKind.Success, { text: "Link copied" });
+  };
+
+  const fork = async () => {
+    if (isForking()) return;
+
+    setIsForking(true);
+    try {
+      await forkProject(projectInfo.id);
+    } catch (error) {
+      console.error("Unable to fork project:", error);
+      void showToast(ToastKind.Error, {
+        titleText: "Could not fork project",
+        text: "Please check your connection and try again.",
+      });
+    } finally {
+      setIsForking(false);
+    }
   };
 
   return (
     <div class={styles.buttons_container}>
       <button onClick={() => copyPath()}>Copy colab link</button>
       <button onClick={() => copyPath(ProjectDefaults.ForkPath)}>Copy fork link</button>
-      <button onClick={() => forkProject(projectInfo.id)}>Fork</button>
+      <button
+        disabled={isForking()}
+        aria-busy={isForking()}
+        onClick={() => void fork()}
+      >
+        {isForking() ? "Forking…" : "Fork"}
+      </button>
     </div>
   );
 }
