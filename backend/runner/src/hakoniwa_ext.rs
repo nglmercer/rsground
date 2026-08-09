@@ -1,49 +1,15 @@
-use std::{io::Read, ops, os::fd::AsFd};
-
-use async_io::Async;
-use hakoniwa::{Child, ExitStatus};
-use nix::{
-    sys::wait::{self, WaitPidFlag, WaitStatus},
-    unistd::Pid,
+use std::{
+    io::{PipeReader, Read},
+    ops,
+    os::fd::AsFd,
 };
 
-pub trait HakoniwaChildExt {
-    fn try_wait(&self) -> Option<ExitStatus>;
-}
+use async_io::Async;
 
-impl HakoniwaChildExt for Child {
-    fn try_wait(&self) -> Option<ExitStatus> {
-        match wait::waitpid(Pid::from_raw(self.id() as i32), Some(WaitPidFlag::WNOHANG)) {
-            Ok(WaitStatus::StillAlive) => None,
-            Ok(WaitStatus::Exited(_, code)) => Some(ExitStatus {
-                code,
-                // Mario reference
-                reason: "Life is good".to_owned(),
-                exit_code: None,
-                rusage: None,
-            }),
-            Ok(WaitStatus::Signaled(_, signal, _) | WaitStatus::Stopped(_, signal)) => {
-                Some(ExitStatus {
-                    code: signal as i32,
-                    reason: signal.as_str().to_owned(),
-                    exit_code: None,
-                    rusage: None,
-                })
-            }
-            Ok(WaitStatus::Continued(_)) => None,
-            Ok(_) => None,
-            Err(err) => {
-                println!("[ERROR] {err}");
-                None
-            }
-        }
-    }
-}
+pub struct AsyncOsReader(Async<PipeReader>);
 
-pub struct AsyncOsReader(Async<os_pipe::PipeReader>);
-
-impl From<os_pipe::PipeReader> for AsyncOsReader {
-    fn from(value: os_pipe::PipeReader) -> Self {
+impl From<PipeReader> for AsyncOsReader {
+    fn from(value: PipeReader) -> Self {
         Self(Async::new(value).expect("Cannot create async wrapper"))
     }
 }
@@ -79,7 +45,7 @@ impl AsyncOsReader {
 }
 
 impl ops::Deref for AsyncOsReader {
-    type Target = os_pipe::PipeReader;
+    type Target = PipeReader;
 
     fn deref(&self) -> &Self::Target {
         self.0.get_ref()

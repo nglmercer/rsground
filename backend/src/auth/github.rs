@@ -13,13 +13,21 @@ const GITHUB_USER_URL: &str = "https://api.github.com/user";
 
 const GITHUB_USER_AGENT: &str = "RustLangEs/rsground";
 
+pub type GithubOAuthClient = oauth2::basic::BasicClient<
+    oauth2::EndpointSet,
+    oauth2::EndpointNotSet,
+    oauth2::EndpointNotSet,
+    oauth2::EndpointNotSet,
+    oauth2::EndpointSet,
+>;
+
 #[derive(Deserialize, Debug)]
 pub struct GitHubUser {
     pub login: String,
     pub avatar_url: String,
 }
 
-pub fn get_oauth_client() -> Option<BasicClient> {
+pub fn get_oauth_client() -> Option<GithubOAuthClient> {
     let client_id = std::env::var(GITHUB_CLIENT_ID_ENV)
         .ok()
         .filter(|value| !value.trim().is_empty());
@@ -56,7 +64,10 @@ pub fn get_oauth_client() -> Option<BasicClient> {
     let redirect_uri = RedirectUrl::new(callback).ok()?;
 
     Some(
-        BasicClient::new(client_id, Some(client_secret), auth_url, Some(token_url))
+        BasicClient::new(client_id)
+            .set_client_secret(client_secret)
+            .set_auth_uri(auth_url)
+            .set_token_uri(token_url)
             .set_redirect_uri(redirect_uri),
     )
 }

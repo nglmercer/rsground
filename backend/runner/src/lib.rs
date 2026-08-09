@@ -3,12 +3,9 @@ pub mod hakoniwa_ext;
 
 use error::RunnerError;
 use hakoniwa::{Child, Command, Container, ExitStatus, Output};
-use hakoniwa_ext::{AsyncOsReader, HakoniwaChildExt};
-use nix::libc::pid_t;
-use nix::sys::signal::{self, Signal};
-use nix::unistd::Pid;
-pub use os_pipe::{PipeReader, PipeWriter};
+use hakoniwa_ext::AsyncOsReader;
 use std::future::Future;
+pub use std::io::{PipeReader, PipeWriter};
 use std::path::{Component, Path, PathBuf};
 use std::time::Duration;
 use tokio::sync::oneshot;
@@ -38,7 +35,7 @@ impl Runner {
         Ok(temp_home)
     }
 
-    fn create_container(temp_home: &str, host_fallback: bool) -> Container {
+    fn create_container(temp_home: &str, host_fallback: bool) -> Result<Container, RunnerError> {
         let mut container = Container::new();
         container
             .hostname("rsground")
@@ -47,7 +44,7 @@ impl Runner {
             .unshare(hakoniwa::Namespace::Network);
 
         if host_fallback {
-            container.rootfs("/");
+            container.rootfs("/")?;
 
             if let Some(host_home) = std::env::var_os("HOME").map(PathBuf::from) {
                 let rustup_home = host_home.join(".rustup");
@@ -61,7 +58,7 @@ impl Runner {
                 }
             }
         } else {
-            container.rootfs(VENDORED_ROOTFS);
+            container.rootfs(VENDORED_ROOTFS)?;
         }
 
         container
@@ -82,8 +79,9 @@ impl Runner {
             .setrlimit(hakoniwa::Rlimit::Core, 0, 0)
             .setrlimit(hakoniwa::Rlimit::Fsize, 64 * 1024 * 1024, 64 * 1024 * 1024)
             .setrlimit(hakoniwa::Rlimit::Nofile, 1024, 1024)
-            .setrlimit(hakoniwa::Rlimit::Nproc, 1024, 1024)
-            .clone()
+            .setrlimit(hakoniwa::Rlimit::Nproc, 1024, 1024);
+
+        Ok(container)
     }
 
     pub async fn new() -> Result<Self, RunnerError> {
@@ -104,7 +102,7 @@ impl Runner {
         let temp_home_str = temp_home
             .to_str()
             .ok_or_else(|| RunnerError::MissingRootfs(temp_home.display().to_string()))?;
-        let container = Self::create_container(temp_home_str, host_fallback);
+        let container = Self::create_container(temp_home_str, host_fallback)?;
 
         Ok(Self {
             container,
@@ -232,7 +230,6 @@ impl Runner {
         let stderr = child.stderr.take().map(AsyncOsReader::from);
         let stderr = tokio::spawn(stderr_fn(stderr));
 
-        let child_pid = Pid::from_raw(child.id() as pid_t);
         let status = if let Some(mut abort) = abort {
             tokio::spawn(async move {
                 let mut status_check_interval = tokio::time::interval(Duration::from_millis(100));
@@ -240,18 +237,20 @@ impl Runner {
                 loop {
                     tokio::select! {
                         _ = status_check_interval.tick() => {
-                            if let Some(status) = child.try_wait() {
+                            if let Some(status) = child.try_wait()? {
                                 return Ok(status)
                             }
                         }
                         _ = &mut abort => {
-                            _ = signal::kill(child_pid, Signal::SIGKILL);
-                            _ = tokio::task::spawn_blocking(move || child.wait()).await;
+                            _ = child.kill();
+                            _ = child.wait();
                             return Ok(ExitStatus {
                                 code: 137,
                                 reason: "Aborted".to_owned(),
                                 exit_code: None,
                                 rusage: None,
+                                proc_pid_smaps_rollup: None,
+                                proc_pid_status: None,
                             });
                         },
                     }
@@ -273,6 +272,8 @@ impl Runner {
                 reason: "Cannot retrieve exit status".to_owned(),
                 exit_code: None,
                 rusage: None,
+                proc_pid_smaps_rollup: None,
+                proc_pid_status: None,
             });
 
         let stdout = stdout
@@ -365,7 +366,7 @@ impl Runner {
     pub async fn patch_binary(&self, path: impl AsRef<str>) -> Result<Output, hakoniwa::Error> {
         let path = path.as_ref();
         if !path.starts_with("/home/") || path.contains("..") {
-            return Err(hakoniwa::Error::Unexpected(
+            return Err(hakoniwa::Error::UnError(
                 "binary path must be inside /home".to_owned(),
             ));
         }
@@ -387,6 +388,8 @@ impl Runner {
                     reason: "No binary patching required".to_owned(),
                     exit_code: Some(0),
                     rusage: None,
+                    proc_pid_smaps_rollup: None,
+                    proc_pid_status: None,
                 },
                 stdout: Vec::new(),
                 stderr: Vec::new(),

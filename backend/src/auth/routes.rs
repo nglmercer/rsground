@@ -14,7 +14,7 @@ use crate::state::AppState;
 use crate::utils::ArcStr;
 
 pub struct OAuthData {
-    pub client: Option<oauth2::basic::BasicClient>,
+    pub client: Option<github::GithubOAuthClient>,
 }
 
 const OAUTH_STATE_COOKIE: &str = "rsground_oauth_state";
@@ -104,10 +104,11 @@ async fn callback(
     }
 
     let code = AuthorizationCode::new(query.code.clone());
+    let http_client = reqwest::Client::new();
 
     let token = client
         .exchange_code(code)
-        .request_async(oauth2::reqwest::async_http_client)
+        .request_async(&http_client)
         .await
         .map_err(|err| err.to_string())
         .map_err(HttpErrors::CodeExchange)

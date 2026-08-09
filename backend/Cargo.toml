@@ -8,7 +8,7 @@ default-run = "backend"
 rsground-runner = { path = "./runner" }
 
 chrono = "0.4"
-dotenv = "0.15.0"
+dotenvy = "0.15.7"
 env_logger = "0.11.7"
 futures = "0.3"
 log = "0.4"
@@ -16,8 +16,8 @@ thiserror.workspace = true
 tokio.workspace = true
 
 # Auth
-jsonwebtoken = { version = "10", features = ["rust_crypto"] }
-oauth2 = { version = "4", features = ["reqwest"] }
+jsonwebtoken = { version = "10", features = ["aws_lc_rs"] }
+oauth2 = "5"
 reqwest = { version = "0.12.15", features = ["json", "default-tls"] }
 uuid = { version = "1.3", features = ["serde", "v4"] }
 
