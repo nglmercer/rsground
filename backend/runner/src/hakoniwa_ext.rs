@@ -56,7 +56,7 @@ impl AsFd for AsyncOsReader {
 
 impl AsyncOsReader {
     pub async fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        _ = self.0.readable().await?;
+        self.0.readable().await?;
         unsafe { self.0.get_mut() }.read(buf)
     }
 
@@ -83,6 +83,6 @@ impl ops::Deref for AsyncOsReader {
     type Target = os_pipe::PipeReader;
 
     fn deref(&self) -> &Self::Target {
-        &self.0.get_ref()
+        self.0.get_ref()
     }
 }

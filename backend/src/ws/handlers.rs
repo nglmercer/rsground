@@ -101,7 +101,7 @@ impl RgWebsocket {
         msg: InternalMessage,
     ) -> Result<ServerMessage, ServerMessageError> {
         match msg {
-            InternalMessage::FileEdit { path } => {
+            InternalMessage::Edit { path } => {
                 // A client can submit an edit immediately after receiving the
                 // project-files broadcast. The file-create notification uses
                 // a separate channel, so recover the document here instead
@@ -140,12 +140,12 @@ impl RgWebsocket {
                     Err(ServerMessageError::None)
                 }
             }
-            InternalMessage::FileCreate { path, doc } => {
+            InternalMessage::Create { path, doc } => {
                 self.sync_docs.insert(path, (doc, 0));
 
                 Err(ServerMessageError::None)
             }
-            InternalMessage::FileDelete { path } => {
+            InternalMessage::Delete { path } => {
                 self.sync_docs.remove(&path);
 
                 Err(ServerMessageError::None)
@@ -287,7 +287,7 @@ impl RgWebsocket {
 
                 let new_doc = project.add_file(file.clone(), Document::new()).await;
 
-                _ = project.internal.send(InternalMessage::FileCreate {
+                _ = project.internal.send(InternalMessage::Create {
                     path: file,
                     doc: new_doc,
                 });
@@ -321,7 +321,7 @@ impl RgWebsocket {
 
                     _ = project
                         .internal
-                        .send(InternalMessage::FileDelete { path: file });
+                        .send(InternalMessage::Delete { path: file });
 
                     _ = project.broadcast.send(msg);
 
@@ -387,9 +387,7 @@ impl RgWebsocket {
                     .await
                     .inspect_err(|err| log::error!("{err}"));
 
-                _ = project
-                    .internal
-                    .send(InternalMessage::FileEdit { path: file });
+                _ = project.internal.send(InternalMessage::Edit { path: file });
 
                 Err(ServerMessageError::None)
             }

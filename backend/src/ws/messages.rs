@@ -141,7 +141,7 @@ impl From<ServerMessageError> for ServerMessage {
 
 #[derive(Clone)]
 pub enum InternalMessage {
-    FileEdit { path: ArcStr },
-    FileCreate { path: ArcStr, doc: Arc<Document> },
-    FileDelete { path: ArcStr },
+    Edit { path: ArcStr },
+    Create { path: ArcStr, doc: Arc<Document> },
+    Delete { path: ArcStr },
 }

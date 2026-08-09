@@ -141,7 +141,7 @@ impl Document {
                 .map_err(|err| err.to_string())?
         };
 
-        for (_, data) in state.cursors.iter_mut() {
+        for data in state.cursors.values_mut() {
             for (start, end) in data.iter_mut() {
                 *start = transform_index(&operation, *start);
                 *end = transform_index(&operation, *end);

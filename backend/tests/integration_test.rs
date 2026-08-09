@@ -59,7 +59,7 @@ async fn test_flow_two_users() {
     _ = ws!(recv owner_ws, "user_connected", [ get "user_id", as string, eq guest_id ]);
 
     // --- 4. Gives editor to guest ---
-    _ = ws!(send owner_ws, "permit_access" {
+    ws!(send owner_ws, "permit_access" {
         "user_id": guest_id,
         "access": "editor"
     });
@@ -69,14 +69,14 @@ async fn test_flow_two_users() {
     _ = ws!(recv guest_ws, "update_access", [ get "user_id", as string, eq guest_id ] [ get "access", as string, eq "editor" ]);
 
     // --- 5. Inserts text in "test" file ---
-    _ = ws!(send guest_ws, "file_create" {
+    ws!(send guest_ws, "file_create" {
         "file": "test"
     });
 
     _ = ws!(recv owner_ws, "project_files", [ get "files", as object, tee_ref [ get "main.rs", as object ] [ get "test", as object ] ] );
     _ = ws!(recv guest_ws, "project_files", [ get "files", as object, tee_ref [ get "main.rs", as object ] [ get "test", as object ] ] );
 
-    _ = ws!(send guest_ws, "sync" {
+    ws!(send guest_ws, "sync" {
         "revision": 0,
         "file": "test",
         "actions": ["hello world"],
@@ -86,7 +86,7 @@ async fn test_flow_two_users() {
     _ = ws!(recv guest_ws, "sync", [ get "actions", as array ] [ get "file", as string, eq "test" ] [ get "revision", as unsigned, eq 0 ]);
 
     // --- 6. Guest deletes text in "test" file ---
-    _ = ws!(send guest_ws, "sync" {
+    ws!(send guest_ws, "sync" {
         "revision": 1,
         "file": "test",
         "actions": [-5, 6],
@@ -96,7 +96,7 @@ async fn test_flow_two_users() {
     _ = ws!(recv guest_ws, "sync", [ get "actions", as array ] [ get "file", as string, eq "test" ] [ get "revision", as unsigned, eq 1 ]);
 
     // --- 7. Guest deletes "test" file ---
-    _ = ws!(send guest_ws, "file_delete" {
+    ws!(send guest_ws, "file_delete" {
         "file": "test"
     });
 
@@ -120,7 +120,7 @@ async fn test_run_code() {
 
     _ = ws!(recv user_ws, "user_connected", [ get "user_id", as string, eq user_id ]);
 
-    _ = ws!(send user_ws, "execute" { });
+    ws!(send user_ws, "execute" { });
 
     _ = ws!(recv user_ws, "sync_output_start");
 

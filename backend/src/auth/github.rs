@@ -47,22 +47,17 @@ pub fn get_oauth_client() -> Option<BasicClient> {
     let client_id = ClientId::new(client_id);
     let client_secret = ClientSecret::new(client_secret);
 
-    let auth_url = AuthUrl::new(GITHUB_AUTH_URL.to_owned())
-        .expect("GITHUB_AUTH_URL must be a valid URL");
+    let auth_url =
+        AuthUrl::new(GITHUB_AUTH_URL.to_owned()).expect("GITHUB_AUTH_URL must be a valid URL");
 
-    let token_url = TokenUrl::new(GITHUB_TOKEN_URL.to_owned())
-        .expect("GITHUB_TOKEN_URL must be a valid URL");
+    let token_url =
+        TokenUrl::new(GITHUB_TOKEN_URL.to_owned()).expect("GITHUB_TOKEN_URL must be a valid URL");
 
     let redirect_uri = RedirectUrl::new(callback).ok()?;
 
     Some(
-        BasicClient::new(
-            client_id,
-            Some(client_secret),
-            auth_url,
-            Some(token_url),
-        )
-        .set_redirect_uri(redirect_uri),
+        BasicClient::new(client_id, Some(client_secret), auth_url, Some(token_url))
+            .set_redirect_uri(redirect_uri),
     )
 }
 

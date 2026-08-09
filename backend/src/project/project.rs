@@ -38,8 +38,7 @@ impl AsyncDefault for Project {
         let id = Uuid::new_v4();
         let broadcast = broadcast::channel(u8::MAX as usize).0;
 
-        let (runner, execution, executer) =
-            ProjectExecuter::start(id.clone(), broadcast.clone()).await;
+        let (runner, execution, executer) = ProjectExecuter::start(id, broadcast.clone()).await;
 
         Self {
             id,
@@ -73,11 +72,11 @@ impl Project {
     }
 
     pub async fn execute(&self) {
-        if self.execution.lock().map_or(false, |e| e.is_some()) {
+        if self.execution.lock().is_ok_and(|e| e.is_some()) {
             return;
         }
 
-        _ = self.executer.do_send(Execute);
+        self.executer.do_send(Execute);
     }
 
     pub fn stop_execute(&self) {
