@@ -19,6 +19,9 @@ export default defineConfig({
     exclude: ["frontend-wasm"],
   },
   server: {
+    // The backend's local default binds to IPv4. Pin Vite to the same loopback
+    // family so browser WebSocket connections do not resolve localhost to ::1.
+    host: "127.0.0.1",
     port: 3000,
   },
   build: {

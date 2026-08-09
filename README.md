@@ -29,7 +29,7 @@ In a second terminal, start the frontend:
 pnpm --dir frontend dev
 ```
 
-Then open the URL printed by Vite, normally `http://localhost:3000`.
+Then open the URL printed by Vite, normally `http://127.0.0.1:3000`.
 
 Rust editor features are provided by Rust Analyzer over the backend WebSocket
 bridge. Local development needs `rust-analyzer` and the `rust-src` component

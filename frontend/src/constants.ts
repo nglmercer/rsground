@@ -241,4 +241,4 @@ export const ContextMenuConfig = {
 } as const;
 
 export const BACKEND_HOST =
-  import.meta.env.VITE_BACKEND_HOST || "http://localhost:8080";
+  import.meta.env.VITE_BACKEND_HOST || "http://127.0.0.1:8080";
