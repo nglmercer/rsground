@@ -53,24 +53,28 @@ export function OutputPanel() {
   return (
     <div class={styles.container}>
       <ul class={styles.actions} aria-label="Output actions">
-        <li
-          class={styles.action_play}
-          aria-role="button"
-          aria-label="Run code"
-          title="Run code"
-          onClick={() => sendMessage(ClientMessageKind.Execute, {})}
-        >
-          <PlayIcon />
+        <li>
+          <button
+            type="button"
+            class={`${styles.action} ${styles.action_play}`}
+            aria-label="Run code"
+            title="Run code"
+            onClick={() => sendMessage(ClientMessageKind.Execute, {})}
+          >
+            <PlayIcon aria-hidden="true" />
+          </button>
         </li>
 
-        <li
-          class={styles.action_kill}
-          aria-role="button"
-          aria-label="Kill program"
-          title="Kill program"
-          onClick={() => sendMessage(ClientMessageKind.StopExecute, {})}
-        >
-          <SkullIcon />
+        <li>
+          <button
+            type="button"
+            class={`${styles.action} ${styles.action_kill}`}
+            aria-label="Kill program"
+            title="Kill program"
+            onClick={() => sendMessage(ClientMessageKind.StopExecute, {})}
+          >
+            <SkullIcon aria-hidden="true" />
+          </button>
         </li>
 
         <Show when={exitCode() == ProcessExitCode.Success}>

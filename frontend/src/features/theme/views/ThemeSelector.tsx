@@ -15,15 +15,30 @@ export function ThemeSelector() {
 
   return (
     <li class={styles.container}>
-      <ThemeSelectorItem themeSelector={themeSelector} mode={ThemeMode.System}>
-        <DisplayIcon />
-      </ThemeSelectorItem>
-      <ThemeSelectorItem themeSelector={themeSelector} mode={ThemeMode.Light}>
-        <SunIcon />
-      </ThemeSelectorItem>
-      <ThemeSelectorItem themeSelector={themeSelector} mode={ThemeMode.Dark}>
-        <MoonIcon />
-      </ThemeSelectorItem>
+      <span class={styles.heading}>Theme</span>
+      <div class={styles.options} role="radiogroup" aria-label="Theme mode">
+        <ThemeSelectorItem
+          themeSelector={themeSelector}
+          mode={ThemeMode.System}
+          label="System"
+        >
+          <DisplayIcon aria-hidden="true" />
+        </ThemeSelectorItem>
+        <ThemeSelectorItem
+          themeSelector={themeSelector}
+          mode={ThemeMode.Light}
+          label="Light"
+        >
+          <SunIcon aria-hidden="true" />
+        </ThemeSelectorItem>
+        <ThemeSelectorItem
+          themeSelector={themeSelector}
+          mode={ThemeMode.Dark}
+          label="Dark"
+        >
+          <MoonIcon aria-hidden="true" />
+        </ThemeSelectorItem>
+      </div>
     </li>
   );
 }
@@ -31,14 +46,16 @@ export function ThemeSelector() {
 interface ThemeSelectorItemProps {
   themeSelector: (key: ThemeMode) => boolean;
   mode: ThemeMode;
+  label: string;
 }
 
 function ThemeSelectorItem(props: ParentProps<ThemeSelectorItemProps>) {
   return (
-    <label class={styles.item}>
+    <label class={styles.item} title={props.label}>
       <input
         type="radio"
         name={ThemeSelectorConfig.InputName}
+        aria-label={props.label}
         checked={props.themeSelector(props.mode)}
         onChange={(ev) => {
           if (ev.currentTarget.checked) {
@@ -46,7 +63,8 @@ function ThemeSelectorItem(props: ParentProps<ThemeSelectorItemProps>) {
           }
         }}
       />
-      {props.children}
+      <span class={styles.icon} aria-hidden="true">{props.children}</span>
+      <span>{props.label}</span>
     </label>
   );
 }

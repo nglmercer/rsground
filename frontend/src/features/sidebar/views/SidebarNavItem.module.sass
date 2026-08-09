@@ -54,12 +54,6 @@
 @media (max-width: 750px)
   .nav_item
     position: relative
-    top: 0 !important
-    left: 0 !important
-
-    [data-closed] &
-      top: 0 !important
-      left: 0 !important
-
-      &:nth-last-child(1) svg
-        transform: none
+    top: auto !important
+    left: auto !important
+    flex: 0 0 $sidebar_buttons_width

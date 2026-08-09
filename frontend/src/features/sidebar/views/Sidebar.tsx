@@ -20,9 +20,8 @@ export function Sidebar() {
     <div
       class={styles.container}
       attr:data-closed={!isSidebarOpen() || null}
-      attr:aria-hidden={!isSidebarOpen() || null}
     >
-      <nav class={styles.nav}>
+      <nav class={styles.nav} aria-label="Workspace navigation">
         <ul class={styles.nav_items}>
           <ContextMenu
             as={SidebarNavItem}
@@ -34,7 +33,7 @@ export function Sidebar() {
               Theme: <ThemeSelector />,
             }}
           >
-            <MenuIcon />
+            <MenuIcon aria-hidden="true" />
           </ContextMenu>
 
           <SidebarNavItem
@@ -48,24 +47,30 @@ export function Sidebar() {
           </SidebarNavItem>
 
           <SidebarNavItem tooltip="Colab" onClick={() => setIsColabOpen(true)}>
-            <ShareNodesIcon />
+            <ShareNodesIcon aria-hidden="true" />
             <Colab />
           </SidebarNavItem>
 
-          <SidebarNavItem>
-            <DocumentIcon />
+          <SidebarNavItem
+            tooltip="Files"
+            onClick={() => setIsSidebarOpen(true)}
+          >
+            <DocumentIcon aria-hidden="true" />
           </SidebarNavItem>
 
           <SidebarNavItem
             tooltip={isSidebarOpen() ? "Close" : "Open"}
             onClick={() => setIsSidebarOpen((prev) => !prev)}
           >
-            <ChevronLeftIcon />
+            <ChevronLeftIcon aria-hidden="true" />
           </SidebarNavItem>
         </ul>
       </nav>
 
-      <div class={styles.body}>
+      <div
+        class={styles.body}
+        attr:aria-hidden={!isSidebarOpen() || null}
+      >
         <FileExplorer />
       </div>
     </div>

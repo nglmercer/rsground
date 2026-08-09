@@ -33,8 +33,8 @@ function RenderFolder(props: { data: FolderNode }) {
             "Delete": { level: ContextMenuLevel.Error },
           }}
         >
-          <FolderPlusIcon class={styles.closed_folder} />
-          <FolderMinusIcon class={styles.opened_folder} />
+          <FolderPlusIcon class={styles.closed_folder} aria-hidden="true" />
+          <FolderMinusIcon class={styles.opened_folder} aria-hidden="true" />
 
           <span>{props.data.name}</span>
         </ContextMenu>
@@ -62,8 +62,8 @@ function RenderFile(props: { data: FileNode }) {
       onClick={() => openFile(props.data.fullPath)}
     >
       {props.data.filename.endsWith(FilePath.RustExtension)
-        ? <BrandsRustIcon />
-        : <FileLinesIcon />}
+        ? <BrandsRustIcon aria-hidden="true" />
+        : <FileLinesIcon aria-hidden="true" />}
       <span>{props.data.filename}</span>
     </ContextMenu>
   );

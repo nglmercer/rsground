@@ -11,10 +11,14 @@ export function RawUserAvatar() {
   return (
     <>
       <Show when={has_avatar()}>
-        <img class={styles.raw_avatar_img} src={authInfo()?.avatar_url} />
+        <img
+          class={styles.raw_avatar_img}
+          src={authInfo()?.avatar_url}
+          alt={`${authInfo()?.name ?? "User"} avatar`}
+        />
       </Show>
       <Show when={!has_avatar()}>
-        <SolidUserIcon height="100%" width="100%" />
+        <SolidUserIcon height="100%" width="100%" aria-hidden="true" />
       </Show>
     </>
   );

@@ -40,6 +40,8 @@ export function SidebarNavItem(
           }}
           onClick={props.onClick}
           {...restProps as ComponentProps<"button">}
+          aria-label={props.tooltip}
+          title={props.tooltip}
         >
           {props.children}
         </Tooltip.Trigger>
