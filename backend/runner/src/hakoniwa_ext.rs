@@ -56,14 +56,8 @@ impl AsFd for AsyncOsReader {
 
 impl AsyncOsReader {
     pub async fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        loop {
-            _ = self.0.readable().await?;
-
-            match unsafe { self.0.get_mut() }.read(buf) {
-                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => continue,
-                result => return result,
-            }
-        }
+        _ = self.0.readable().await?;
+        unsafe { self.0.get_mut() }.read(buf)
     }
 
     pub async fn read_to_end(&mut self, buf: &mut Vec<u8>) -> std::io::Result<usize> {

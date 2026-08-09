@@ -43,9 +43,6 @@ impl Runner {
         container.hostname("rsground");
 
         if host_fallback {
-            // Keep hakoniwa's namespaces for local development when the
-            // downloaded image is not present. The vendored image remains the
-            // normal path whenever it exists.
             container.rootfs("/");
 
             if let Some(host_home) = std::env::var_os("HOME").map(PathBuf::from) {
