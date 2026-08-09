@@ -38,11 +38,11 @@ image before deploying.
 
 ## Tests
 
-The integration tests expect a running API. Start it first, then run:
+Integration tests start an isolated API automatically:
 
 ```bash
 cargo test --workspace --all-targets -- --test-threads=1
 ```
 
-Use `RSGROUND_TEST_API_URL=http://127.0.0.1:PORT` when the API is listening on
-a non-default address.
+Use `RSGROUND_TEST_API_URL=http://127.0.0.1:PORT` to run them against an
+already-running API instead.

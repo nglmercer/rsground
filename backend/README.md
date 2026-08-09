@@ -11,15 +11,16 @@ level is the maximum log::Level to be shown and includes:
     off (pseudo level to disable all logging for the target)
 suelo usar:
 `RUST_LOG=debug cargo run --bin backend`
-Para ejecutar los tests de integracion ejecute la api primero y luego
-```
-cargo run --bin backend
-```
-para ejecutar los tests
+Para ejecutar los tests de integración, el servidor de pruebas se inicia
+automáticamente:
+
 ```
 cargo test --no-fail-fast --test integration_test
 cargo test --no-fail-fast --bin backend --verbose
 ```
+
+Use `RSGROUND_TEST_API_URL=http://127.0.0.1:PORT` para probar contra una API
+ya iniciada.
 
 ## Things to know
 The prefix `Rg` (Ej. `RgWebsocket`) means for `RsGround`, a way to difference business structs

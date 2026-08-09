@@ -1,6 +1,91 @@
 use core::fmt;
+use std::{future::Future, net::TcpListener, time::Duration};
 
+use actix_cors::Cors;
+use actix_web::{App, HttpServer};
 use awc::http::header::TryIntoHeaderPair;
+
+tokio::task_local! {
+    static TEST_API_BASE: String;
+}
+
+struct TestServer {
+    base_url: String,
+    handle: actix_web::dev::ServerHandle,
+}
+
+impl TestServer {
+    async fn start() -> Self {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("Cannot bind test server");
+        let address = listener
+            .local_addr()
+            .expect("Cannot read test server address");
+        let app_data = backend::new_app_data();
+
+        let server = HttpServer::new(move || {
+            App::new()
+                .wrap(
+                    Cors::default()
+                        .allow_any_origin()
+                        .allow_any_method()
+                        .allow_any_header(),
+                )
+                .configure(|config| app_data.configure(config))
+        })
+        .workers(1)
+        .listen(listener)
+        .expect("Cannot start test server")
+        .run();
+
+        let handle = server.handle();
+        actix_rt::spawn(server);
+
+        let base_url = format!("http://{address}");
+        wait_until_ready(&base_url).await;
+
+        Self { base_url, handle }
+    }
+}
+
+impl Drop for TestServer {
+    fn drop(&mut self) {
+        let handle = self.handle.clone();
+        actix_rt::spawn(async move {
+            handle.stop(true).await;
+        });
+    }
+}
+
+async fn wait_until_ready(base_url: &str) {
+    for _ in 0..100 {
+        if let Ok(response) = awc::Client::new()
+            .get(format!("{base_url}/health"))
+            .send()
+            .await
+        {
+            if response.status().is_success() {
+                return;
+            }
+        }
+
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+
+    panic!("Test server did not become ready at {base_url}");
+}
+
+pub async fn with_test_server<F, Fut, T>(test: F) -> T
+where
+    F: FnOnce() -> Fut,
+    Fut: Future<Output = T>,
+{
+    if std::env::var_os("RSGROUND_TEST_API_URL").is_some() {
+        return test().await;
+    }
+
+    let server = TestServer::start().await;
+    TEST_API_BASE.scope(server.base_url.clone(), test()).await
+}
 
 #[macro_export(local_inner_macros)]
 macro_rules! _const {
@@ -17,17 +102,25 @@ pub fn auth_header(token: impl fmt::Display) -> impl TryIntoHeaderPair {
 }
 
 pub fn api_url(path: &str) -> String {
-    let base = std::env::var("RSGROUND_TEST_API_URL")
-        .unwrap_or_else(|_| "http://localhost:8080".to_owned());
+    let base = api_base_url();
     format!("{base}{path}")
 }
 
 pub fn ws_url(path: &str) -> String {
-    let base = std::env::var("RSGROUND_TEST_API_URL")
-        .unwrap_or_else(|_| "http://localhost:8080".to_owned())
+    let base = api_base_url()
         .replacen("http://", "ws://", 1)
         .replacen("https://", "wss://", 1);
     format!("{base}{path}")
+}
+
+fn api_base_url() -> String {
+    if let Ok(base) = std::env::var("RSGROUND_TEST_API_URL") {
+        return base;
+    }
+
+    TEST_API_BASE
+        .try_with(Clone::clone)
+        .unwrap_or_else(|_| "http://127.0.0.1:8080".to_owned())
 }
 
 #[macro_export]

@@ -26,6 +26,10 @@ async fn create_project(token: &str) -> String {
 
 #[actix_rt::test]
 async fn test_flow_two_users() {
+    common::with_test_server(test_flow_two_users_body).await;
+}
+
+async fn test_flow_two_users_body() {
     // --- 1. Log in for both users ---
     let (owner, owner_id) = login_as("owner").await;
     let (guest, guest_id) = login_as("guest").await;
@@ -106,6 +110,10 @@ async fn test_flow_two_users() {
 
 #[actix::test]
 async fn test_run_code() {
+    common::with_test_server(test_run_code_body).await;
+}
+
+async fn test_run_code_body() {
     let (user, user_id) = login_as("user").await;
 
     let project_id = create_project(&user).await;
