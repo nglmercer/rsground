@@ -10,6 +10,7 @@ use crate::utils::{ArcStr, ToStream};
 use crate::ws::messages::{ClientMessage, ServerMessage, ServerMessageError};
 use crate::ws::ws_ext::SessionExt;
 
+use super::lsp::{validate_lsp_message, MAX_LSP_MESSAGE_BYTES};
 use super::messages::InternalMessage;
 use super::websocket::RgWebsocket;
 
@@ -450,11 +451,23 @@ impl RgWebsocket {
                 })
             }
             ClientMessage::Lsp { message } => {
+                validate_lsp_message(&message).map_err(|error| {
+                    ServerMessageError::InvalidOperation(format!(
+                        "invalid language-server message: {error}"
+                    ))
+                })?;
+
                 let message = serde_json::to_string(&message).map_err(|error| {
                     ServerMessageError::InvalidOperation(format!(
                         "cannot serialize language-server message: {error}"
                     ))
                 })?;
+
+                if message.len() > MAX_LSP_MESSAGE_BYTES {
+                    return Err(ServerMessageError::InvalidOperation(
+                        "language-server message exceeds the maximum size".to_owned(),
+                    ));
+                }
 
                 self.send_lsp(message).await.map_err(|error| {
                     ServerMessageError::InvalidOperation(format!(

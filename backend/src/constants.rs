@@ -131,6 +131,7 @@ pub mod json {
     pub const BUF: &str = "buf";
     pub const CHANNEL: &str = "channel";
     pub const JWT: &str = "jwt";
+    pub const MESSAGE: &str = "message";
     pub const NAME: &str = "name";
     pub const OWNER: &str = "owner";
     pub const PASSWORD: &str = "password";

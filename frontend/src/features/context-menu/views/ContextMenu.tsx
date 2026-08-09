@@ -13,10 +13,16 @@ import {
 
 import styles from "./ContextMenu.module.sass";
 
+type ContextMenuItem = {
+  level?: ContextMenuLevel;
+  disabled?: boolean | (() => boolean);
+  onClick?: () => void;
+};
+
 export interface ContextMenuProps {
   options: Record<
     string,
-    { level?: ContextMenuLevel; disabled?: boolean; onClick?: () => void } | JSX.Element
+    ContextMenuItem | JSX.Element
   >;
 
   /**
@@ -36,6 +42,15 @@ export interface ContextMenuProps {
    * @defaultValue true
    */
   followCursor?: boolean;
+
+  /** Called immediately before the menu is opened. */
+  onOpen?: (event: MouseEvent) => void;
+}
+
+function isDisabled(item: ContextMenuItem) {
+  return typeof item.disabled === "function"
+    ? item.disabled()
+    : item.disabled;
 }
 
 export function ContextMenu(
@@ -51,6 +66,7 @@ export function ContextMenu(
     "useLeftClick",
     "useRightClick",
     "followCursor",
+    "onOpen",
   ]);
 
   const contextMenuId = addContextMenu();
@@ -61,6 +77,8 @@ export function ContextMenu(
     ev.stopPropagation();
 
     closeAllContextMenus();
+
+    props.onOpen?.(ev);
 
     // Align context menu arrow with cursor event
     if (props.followCursor != false) {
@@ -112,7 +130,7 @@ export function ContextMenu(
                   <li
                     tabindex="1"
                     classList={{
-                      [styles.disabled]: item.disabled,
+                      [styles.disabled]: isDisabled(item),
 
                       [styles.item]: ![
                         ContextMenuLevel.Error,
@@ -121,7 +139,9 @@ export function ContextMenu(
                       [styles.item_error]: item.level === ContextMenuLevel.Error,
                       [styles.item_warning]: item.level === ContextMenuLevel.Warning,
                     }}
-                    onClick={item.onClick}
+                    onClick={() => {
+                      if (!isDisabled(item)) item.onClick?.();
+                    }}
                   >
                     {name}
                   </li>

@@ -16,6 +16,12 @@
     background: hsla($hue, 70%, 50%, 70%)
     transform: translateX(-50%)
 
+.editor_shell
+  width: 100%
+  height: 100%
+  min-width: 0
+  min-height: 0
+
 .container
   padding: 0.25rem 0
   color: var(--surface-foreground)
@@ -55,6 +61,72 @@
   :global(.cm-cursor)
     border-color: #FFF
 
+  :global(.cm-tooltip)
+    +neobrutalism
+    max-width: min(42rem, calc(100vw - 2rem))
+    max-height: 24rem
+    overflow: auto
+    background: var(--surface2-background)
+    color: var(--surface2-foreground)
+
+  :global(.cm-tooltip-hover),
+  :global(.cm-completionInfo),
+  :global(.cm-signature-help)
+    white-space: normal
+
+  :global(.cm-lsp-documentation)
+    padding: 0.5rem
+    font-size: 0.8rem
+
+    pre,
+    code
+      font-size: 0.75rem
+
+    a
+      color: var(--colors-primary)
+
+  :global(.cm-tooltip-lint)
+    padding: 0.25rem 0.5rem
+
+  :global(.cm-diagnostic-error),
+  :global(.cm-lintRange-error)
+    text-decoration: underline wavy var(--colors-error-500)
+    text-decoration-thickness: 1px
+
+  :global(.cm-diagnostic-warning),
+  :global(.cm-lintRange-warning)
+    text-decoration: underline wavy var(--colors-warn-500)
+    text-decoration-thickness: 1px
+
+  :global(.cm-lintRange-info),
+  :global(.cm-lintRange-hint)
+    text-decoration: underline dotted var(--colors-secondary-500)
+    text-decoration-thickness: 1px
+
+  :global(.cm-lint-marker-error),
+  :global(.cm-lint-marker-warning),
+  :global(.cm-lint-marker-info),
+  :global(.cm-lint-marker-hint)
+    color: var(--surface-foreground)
+
+  :global(.cm-lsp-reference-panel)
+    +neobrutalism
+    max-height: 14rem
+    overflow: auto
+    background: var(--surface2-background)
+    color: var(--surface2-foreground)
+
+    :global(.cm-lsp-reference-file)
+      padding: 0.35rem 0.5rem
+      color: var(--colors-primary)
+
+    :global(.cm-lsp-reference)
+      padding: 0.25rem 0.5rem
+
+      &[aria-selected="true"]
+        background: var(--colors-secondary-200)
+        color: #000
+
 .completion_tooltip
   +neobrutalism
   background: var(--surface2-background)
@@ -68,6 +140,10 @@
 
   :global(.cm-completionIcon)
     filter: contrast(1) brightness(1000%)
+
+  :global(.cm-completionDetail)
+    color: var(--surface-foreground)
+    opacity: 0.7
 
   &:hover
     filter: brightness(0.8)

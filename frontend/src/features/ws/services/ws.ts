@@ -85,6 +85,13 @@ wsUrl.protocol = wsUrl.protocol === "http:" ? "ws:" : "wss:";
 wsUrl.pathname = WebSocketConfig.Path;
 
 const ws_callbacks: Array<(msg: ServerMessage) => void> = [];
+const ws_state_callbacks: Array<(state: WebSocketState) => void> = [];
+
+export type WebSocketState = "open" | "closed";
+
+function notifyWebSocketState(state: WebSocketState) {
+  for (const cb of ws_state_callbacks) cb(state);
+}
 
 function connectWs(jwt: string, projectId: string) {
   const session = new WebSocket(
@@ -92,9 +99,26 @@ function connectWs(jwt: string, projectId: string) {
     [`${WebSocketConfig.AuthProtocolPrefix}${jwt}`],
   );
 
-  let interval: NodeJS.Timeout;
+  let interval: NodeJS.Timeout | undefined;
+  let isCurrentSession = false;
+  let closedNotified = false;
+
+  const markClosed = () => {
+    if (closedNotified) return;
+    closedNotified = true;
+    if (interval) clearInterval(interval);
+
+    // A stale socket must not tear down a newer project connection.
+    if (!isCurrentSession || wsSession() !== session) return;
+
+    setWsSession(null);
+    notifyWebSocketState("closed");
+  };
+
   session.addEventListener("open", () => {
+    isCurrentSession = true;
     setWsSession(session);
+    notifyWebSocketState("open");
 
     interval = setInterval(() => {
       session.send(WebSocketConfig.Ping);
@@ -113,18 +137,27 @@ function connectWs(jwt: string, projectId: string) {
   });
 
   session.addEventListener("error", (ev) => {
-    clearInterval(interval);
-    setWsSession(null);
+    markClosed();
     console.error("Websocket error:", ev);
   });
 
   session.addEventListener("close", (ev) => {
-    clearInterval(interval);
-    setWsSession(null);
+    markClosed();
     console.error("Websocket closed:", ev);
 
-    if (ev.code === WebSocketConfig.AbnormalClosureCode) startWebsocket();
+    if (isCurrentSession && ev.code === WebSocketConfig.AbnormalClosureCode) {
+      startWebsocket();
+    }
   });
+}
+
+export function onWebSocketState(cb: (state: WebSocketState) => void) {
+  ws_state_callbacks.push(cb);
+
+  return () => {
+    const index = ws_state_callbacks.indexOf(cb);
+    if (index >= 0) ws_state_callbacks.splice(index, 1);
+  };
 }
 
 /** Register callback for websocket messages. Returns unsubscribe */

@@ -35,4 +35,10 @@ export function syncFiles(files: Record<string, DocumentInfo>) {
 
     setFileExplorer("nodes", nodes);
   });
+
+  // Load the LSP bridge lazily so the WebSocket service and file explorer do
+  // not form a module-initialization cycle during application startup.
+  void import("@features/editor/services/lsp").then(({ syncLspProjectFiles }) => {
+    syncLspProjectFiles(files);
+  });
 }

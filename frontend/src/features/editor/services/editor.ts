@@ -1,5 +1,6 @@
 import { untrack } from "solid-js";
 import { unwrap } from "solid-js/store";
+import { EditorView } from "codemirror";
 
 import { dockview } from "@features/panels/stores";
 import { onWsMessage } from "@features/ws/services";
@@ -17,6 +18,49 @@ import { DockviewConfig, EditingFileField, FilePath, Panel } from "@constants";
 
 let syncListenerStarted = false;
 const pendingFiles = new Set<string>();
+const editorViews = new Map<string, EditorView>();
+const editorWaiters = new Map<string, Set<(view: EditorView) => void>>();
+
+export function registerEditorView(file: string, view: EditorView) {
+  editorViews.set(file, view);
+
+  const waiters = editorWaiters.get(file);
+  if (!waiters) return;
+
+  editorWaiters.delete(file);
+  for (const resolve of waiters) resolve(view);
+}
+
+export function unregisterEditorView(file: string, view: EditorView) {
+  if (editorViews.get(file) === view) editorViews.delete(file);
+}
+
+export function getEditorView(file: string) {
+  return editorViews.get(file) ?? null;
+}
+
+export function waitForEditor(file: string, timeoutMs = 5_000) {
+  const current = getEditorView(file);
+  if (current) return Promise.resolve<EditorView | null>(current);
+
+  return new Promise<EditorView | null>((resolve) => {
+    const waiters = editorWaiters.get(file) ?? new Set();
+    editorWaiters.set(file, waiters);
+
+    let timeout: ReturnType<typeof setTimeout>;
+    const resolveEditor = (view: EditorView) => {
+      clearTimeout(timeout);
+      resolve(view);
+    };
+
+    timeout = setTimeout(() => {
+      waiters.delete(resolveEditor);
+      if (!waiters.size) editorWaiters.delete(file);
+      resolve(null);
+    }, timeoutMs);
+    waiters.add(resolveEditor);
+  });
+}
 
 export async function openFile(filepath: string) {
   const id = `${Panel.FilePrefix}${filepath}`;
@@ -27,10 +71,16 @@ export async function openFile(filepath: string) {
   // Queue the request and let Panels flush it after Dockview is ready.
   if (!api) {
     pendingFiles.add(filepath);
-    return;
+    return waitForEditor(filepath);
   }
 
-  if (!api.getPanel(id)) {
+  const panel = api.getPanel(id);
+  if (panel) {
+    panel.api.setActive();
+    return waitForEditor(filepath);
+  }
+
+  if (!panel) {
     api.addPanel({
       id,
       component: Panel.Code,
@@ -41,6 +91,8 @@ export async function openFile(filepath: string) {
       },
     });
   }
+
+  return waitForEditor(filepath);
 }
 
 export function flushPendingFiles() {
@@ -73,5 +125,8 @@ export function startReceivingSync() {
     }
 
     setSyncFiles(msg.file, content ?? "");
+    void import("./lsp").then(({ syncLspProjectFile }) => {
+      syncLspProjectFile(msg.file, content ?? "");
+    });
   });
 }

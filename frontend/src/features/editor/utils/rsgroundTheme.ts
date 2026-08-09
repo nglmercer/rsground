@@ -18,4 +18,10 @@ export const rsgroundTheme = HighlightStyle.define([
   { tag: t.string, class: styles.string },
   { tag: t.meta, class: styles.attribute },
   { tag: t.special(t.variableName), class: styles.lifetime },
+  { tag: t.variableName, class: styles.variable },
+  { tag: t.constant(t.variableName), class: styles.constant },
+  { tag: t.number, class: styles.number },
+  { tag: t.bool, class: styles.bool },
+  { tag: t.comment, class: styles.comment },
+  { tag: t.operator, class: styles.operator },
 ]);

@@ -32,8 +32,12 @@ pnpm --dir frontend dev
 Then open the URL printed by Vite, normally `http://127.0.0.1:3000`.
 
 Rust editor features are provided by Rust Analyzer over the backend WebSocket
-bridge. Local development needs `rust-analyzer` and the `rust-src` component
-in the active Rust toolchain; a deployed runner image must include both.
+bridge. Local development needs `rust-analyzer`, `rustfmt`, and the `rust-src`
+component in the active Rust toolchain; a deployed runner image must include
+all three. Rust files get Rust Analyzer completion, hover and signature help,
+diagnostics, semantic highlighting with the Lezer syntax fallback, formatting,
+rename, definition/declaration/type/implementation navigation, and references.
+Navigation can open a closed project file in a new editor panel.
 
 The vendored runner image is used when `backend/runner/lxc_rootfs` exists. A
 fresh development checkout falls back to the host rootfs inside hakoniwa's

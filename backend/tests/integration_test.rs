@@ -152,6 +152,65 @@ async fn test_run_code_body() {
 }
 
 #[actix_rt::test]
+async fn test_lsp_initialize() {
+    common::with_test_server(test_lsp_initialize_body).await;
+}
+
+async fn test_lsp_initialize_body() {
+    let (user, user_id) = login_as(common::USER_NAME).await;
+    let project_id = create_project(&user).await;
+    let mut user_ws = ws!(connect user, &project_id);
+
+    _ = ws!(recv user_ws, common::ws_action::WELCOME);
+    _ = ws!(recv user_ws, common::ws_action::USER_CONNECTED, [
+        get common::json::USER_ID, as string, eq user_id
+    ]);
+
+    ws!(send user_ws, common::ws_action::LSP, {
+        (common::json::MESSAGE): ::serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "processId": ::serde_json::Value::Null,
+                "clientInfo": { "name": "rsground-test" },
+                "rootUri": "file:///home",
+                "capabilities": {}
+            }
+        })
+    });
+
+    let response = tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            let Some(Ok(awc::ws::Frame::Text(message))) = user_ws.next().await else {
+                continue;
+            };
+            let value = ::serde_json::from_slice::<::serde_json::Value>(&message).unwrap();
+            if value
+                .get(common::json::ACTION)
+                .and_then(|action| action.as_str())
+                == Some(common::ws_action::LSP)
+                && value
+                    .get(common::json::MESSAGE)
+                    .and_then(|message| message.get("id"))
+                    .and_then(|id| id.as_u64())
+                    == Some(1)
+            {
+                break value;
+            }
+        }
+    })
+    .await
+    .expect("Rust Analyzer should initialize through the WebSocket bridge");
+
+    assert!(response
+        .get(common::json::MESSAGE)
+        .and_then(|message| message.get("result"))
+        .and_then(|result| result.get("capabilities"))
+        .is_some_and(|capabilities| capabilities.is_object()));
+}
+
+#[actix_rt::test]
 async fn test_project_password_is_not_disclosed() {
     common::with_test_server(test_project_password_is_not_disclosed_body).await;
 }

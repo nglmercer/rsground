@@ -1,6 +1,7 @@
 use std::io::{self, Read, Write};
 
 use rsground_runner::{error::RunnerError, Child, Runner};
+use serde_json::Value;
 use tokio::sync::mpsc;
 
 /// Keep a single LSP frame bounded even though the WebSocket itself accepts
@@ -10,6 +11,45 @@ use tokio::sync::mpsc;
 pub const MAX_LSP_MESSAGE_BYTES: usize = 1 << 20;
 const MAX_LSP_HEADER_BYTES: usize = 8 << 10;
 const LSP_WRITE_QUEUE_CAPACITY: usize = 64;
+
+/// Validate the JSON-RPC envelope before forwarding a browser message to the
+/// per-connection language server. The payload remains opaque to the
+/// playground, but malformed envelopes should never reach the subprocess.
+pub fn validate_lsp_message(message: &Value) -> Result<(), &'static str> {
+    let object = message
+        .as_object()
+        .ok_or("LSP message must be a JSON object")?;
+
+    if object.get("jsonrpc").and_then(Value::as_str) != Some("2.0") {
+        return Err("LSP message must use JSON-RPC 2.0");
+    }
+
+    if let Some(id) = object.get("id") {
+        let valid = id.is_string() || id.as_i64().is_some() || id.as_u64().is_some();
+        if !valid {
+            return Err("LSP message id must be a string or integer");
+        }
+    }
+
+    if let Some(method) = object.get("method") {
+        if method.as_str().is_none_or(str::is_empty) {
+            return Err("LSP method must be a non-empty string");
+        }
+        if object.contains_key("result") || object.contains_key("error") {
+            return Err("LSP requests and notifications cannot contain a result or error");
+        }
+        return Ok(());
+    }
+
+    if !object.contains_key("id") {
+        return Err("LSP response must contain an id");
+    }
+    if !object.contains_key("result") && !object.contains_key("error") {
+        return Err("LSP response must contain a result or error");
+    }
+
+    Ok(())
+}
 
 pub struct LspProcess {
     pub child: Child,
@@ -160,7 +200,9 @@ fn read_lsp_message(reader: &mut impl Read) -> io::Result<Option<String>> {
 mod tests {
     use std::io::Cursor;
 
-    use super::{read_lsp_message, write_lsp_message};
+    use serde_json::json;
+
+    use super::{read_lsp_message, validate_lsp_message, write_lsp_message};
 
     #[test]
     fn round_trips_lsp_frames() {
@@ -183,5 +225,33 @@ mod tests {
             read_lsp_message(&mut Cursor::new(frame)).unwrap(),
             Some("{}".into())
         );
+    }
+
+    #[test]
+    fn validates_requests_and_notifications() {
+        assert!(validate_lsp_message(&json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize"
+        }))
+        .is_ok());
+        assert!(validate_lsp_message(&json!({
+            "jsonrpc": "2.0",
+            "method": "initialized"
+        }))
+        .is_ok());
+    }
+
+    #[test]
+    fn rejects_malformed_json_rpc_envelopes() {
+        for message in [
+            json!([]),
+            json!({"jsonrpc": "1.0", "method": "initialize"}),
+            json!({"jsonrpc": "2.0"}),
+            json!({"jsonrpc": "2.0", "id": true, "method": "initialize"}),
+            json!({"jsonrpc": "2.0", "id": 1}),
+        ] {
+            assert!(validate_lsp_message(&message).is_err(), "{message}");
+        }
     }
 }
