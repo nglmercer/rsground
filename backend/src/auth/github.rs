@@ -2,6 +2,16 @@ use oauth2::basic::BasicClient;
 use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
 use serde::Deserialize;
 
+const GITHUB_CLIENT_ID_ENV: &str = "GITHUB_CLIENT_ID";
+const GITHUB_CLIENT_SECRET_ENV: &str = "GITHUB_CLIENT_SECRET";
+const GITHUB_CALLBACK_ENV: &str = "GITHUB_CALLBACK";
+
+const GITHUB_AUTH_URL: &str = "https://github.com/login/oauth/authorize";
+const GITHUB_TOKEN_URL: &str = "https://github.com/login/oauth/access_token";
+const GITHUB_USER_URL: &str = "https://api.github.com/user";
+
+const USER_AGENT: &str = "RustLangEs/rsground";
+
 #[derive(Deserialize, Debug)]
 pub struct GitHubUser {
     pub login: String,
@@ -9,13 +19,15 @@ pub struct GitHubUser {
 }
 
 pub fn get_oauth_client() -> Option<BasicClient> {
-    let client_id = std::env::var("GITHUB_CLIENT_ID")
+    let client_id = std::env::var(GITHUB_CLIENT_ID_ENV)
         .ok()
         .filter(|value| !value.trim().is_empty());
-    let client_secret = std::env::var("GITHUB_CLIENT_SECRET")
+
+    let client_secret = std::env::var(GITHUB_CLIENT_SECRET_ENV)
         .ok()
         .filter(|value| !value.trim().is_empty());
-    let callback = std::env::var("GITHUB_CALLBACK")
+
+    let callback = std::env::var(GITHUB_CALLBACK_ENV)
         .ok()
         .filter(|value| !value.trim().is_empty());
 
@@ -23,20 +35,23 @@ pub fn get_oauth_client() -> Option<BasicClient> {
         (client_id, client_secret, callback)
     else {
         log::warn!(
-            "GitHub OAuth is not configured; guest login remains available. Set GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, and GITHUB_CALLBACK to enable GitHub login."
+            "GitHub OAuth is not configured; guest login remains available. \
+             Set {GITHUB_CLIENT_ID_ENV}, {GITHUB_CLIENT_SECRET_ENV}, and \
+             {GITHUB_CALLBACK_ENV} to enable GitHub login."
         );
         return None;
     };
 
-    let auth_url = AuthUrl::new("https://github.com/login/oauth/authorize".to_string())
+    let auth_url = AuthUrl::new(GITHUB_AUTH_URL.to_owned())
         .expect("GitHub authorization URL is a compile-time constant");
-    let token_url = TokenUrl::new("https://github.com/login/oauth/access_token".to_string())
+
+    let token_url = TokenUrl::new(GITHUB_TOKEN_URL.to_owned())
         .expect("GitHub token URL is a compile-time constant");
 
     let redirect_uri = match RedirectUrl::new(callback) {
         Ok(url) => url,
         Err(error) => {
-            log::error!("Invalid GITHUB_CALLBACK: {error}");
+            log::error!("Invalid {GITHUB_CALLBACK_ENV}: {error}");
             return None;
         }
     };
@@ -54,15 +69,15 @@ pub fn get_oauth_client() -> Option<BasicClient> {
 
 pub async fn fetch_user(access_token: &str) -> Result<GitHubUser, reqwest::Error> {
     let client = reqwest::Client::new();
-    let user_url = "https://api.github.com/user";
 
     let res = client
-        .get(user_url)
-        .header("User-Agent", "RustLangEs/rsground")
+        .get(GITHUB_USER_URL)
+        .header("User-Agent", USER_AGENT)
         .bearer_auth(access_token)
         .send()
         .await?;
 
-    let user: GitHubUser = res.json().await?;
+    let user = res.json::<GitHubUser>().await?;
+
     Ok(user)
 }
